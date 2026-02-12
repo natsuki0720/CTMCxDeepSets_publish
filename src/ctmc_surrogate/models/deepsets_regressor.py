@@ -1,11 +1,14 @@
+"""DeepSets系サロゲート回帰モデル。"""
+
 from __future__ import annotations
+
 import torch
-from torch import Tensor, nn
 import torch.nn.functional as F
+from torch import Tensor, nn
 
 
 class DeepSetsAttnRegressor(nn.Module):
-    """可変長集合入力 -> raw(正)パラメータ。損失側で lifetime に変換する前提。"""
+    """可変長集合入力から正値の生パラメータを推定する注意機構付きDeepSets回帰器。"""
 
     def __init__(
         self,
@@ -19,36 +22,28 @@ class DeepSetsAttnRegressor(nn.Module):
     ) -> None:
         super().__init__()
         self.min_positive = float(min_positive)
-        H = phi_hidden_dim
-        A = attn_hidden_dim if attn_hidden_dim is not None else H
+        phi_dim = int(phi_hidden_dim)
+        attn_dim = int(attn_hidden_dim) if attn_hidden_dim is not None else phi_dim
 
-        # element-wise encoder φ
         self.phi = nn.Sequential(
-            nn.Linear(input_dim, H),
+            nn.Linear(input_dim, phi_dim),
             nn.ReLU(),
-            nn.Linear(H, H),
+            nn.Linear(phi_dim, phi_dim),
             nn.ReLU(),
         )
-
         self.drop = nn.Dropout(dropout)
 
-        # attention over set elements (mask-aware)
-        self.att_fc = nn.Linear(H, A)
-        self.att_score = nn.Linear(A, 1)
+        self.att_fc = nn.Linear(phi_dim, attn_dim)
+        self.att_score = nn.Linear(attn_dim, 1)
 
-        # set-level regressor ρ
         self.rho = nn.Sequential(
-            nn.Linear(H, rho_hidden_dim),
+            nn.Linear(phi_dim, rho_hidden_dim),
             nn.ReLU(),
             nn.Linear(rho_hidden_dim, output_dim),
         )
 
     def forward_raw(self, set_features: Tensor, set_mask: Tensor) -> Tensor:
-        """
-        set_features: (B, S, D)
-        set_mask:     (B, S)  True for valid elements
-        returns raw:  (B, output_dim), strictly positive
-        """
+        """正値制約付きの生パラメータを返す。"""
         if set_features.ndim != 3:
             raise ValueError("set_features は [batch, set_size, feature_dim] を想定します。")
         if set_mask.ndim != 2:
@@ -56,23 +51,47 @@ class DeepSetsAttnRegressor(nn.Module):
         if set_features.shape[:2] != set_mask.shape:
             raise ValueError("set_features と set_mask の [batch, set_size] が一致しません。")
 
-        x = self.phi(set_features)          # (B, S, H)
-        x = self.drop(x)
+        set_mask_bool = set_mask.to(dtype=torch.bool)
+        if not torch.all(set_mask_bool.any(dim=1)):
+            raise ValueError("set_mask の各バッチに少なくとも1つの有効要素が必要です。")
 
-        # attention logits
-        a = torch.tanh(self.att_fc(x))      # (B, S, A)
-        score = self.att_score(a).squeeze(-1)  # (B, S)
+        x = self.drop(self.phi(set_features))
 
-        # mask: invalid -> -inf
-        score = score.masked_fill(~set_mask, float("-inf"))
-        w = F.softmax(score, dim=1)         # (B, S)
+        attn_hidden = torch.tanh(self.att_fc(x))
+        score = self.att_score(attn_hidden).squeeze(-1)
+        score = score.masked_fill(~set_mask_bool, float("-inf"))
+        weight = F.softmax(score, dim=1)
 
-        pooled = torch.sum(x * w.unsqueeze(-1), dim=1)  # (B, H)
-
-        logits = self.rho(self.drop(pooled))            # (B, output_dim)
-        raw = F.softplus(logits) + self.min_positive
-        return raw
+        pooled = torch.sum(x * weight.unsqueeze(-1), dim=1)
+        logits = self.rho(self.drop(pooled))
+        return F.softplus(logits) + self.min_positive
 
     def forward(self, set_features: Tensor, set_mask: Tensor) -> Tensor:
-        # 仕様どおり raw のみ返す
+        """仕様どおり生パラメータ（raw）のみ返す。"""
         return self.forward_raw(set_features, set_mask)
+
+
+# 後方互換のため公開名は維持する。
+DeepSetsRegressor = DeepSetsAttnRegressor
+
+
+def build_model(model_config: dict) -> DeepSetsAttnRegressor:
+    """設定辞書から注意機構付きDeepSets回帰器を構築する。"""
+    required = ["input_dim", "output_dim"]
+    missing = [key for key in required if key not in model_config]
+    if missing:
+        raise ValueError(f"model_config に必須キーが不足しています: {missing}")
+
+    return DeepSetsAttnRegressor(
+        input_dim=int(model_config["input_dim"]),
+        output_dim=int(model_config["output_dim"]),
+        phi_hidden_dim=int(model_config.get("phi_hidden_dim", 128)),
+        rho_hidden_dim=int(model_config.get("rho_hidden_dim", 128)),
+        attn_hidden_dim=(
+            int(model_config["attn_hidden_dim"])
+            if model_config.get("attn_hidden_dim") is not None
+            else None
+        ),
+        dropout=float(model_config.get("dropout", 0.0)),
+        min_positive=float(model_config.get("min_positive", 1e-8)),
+    )
