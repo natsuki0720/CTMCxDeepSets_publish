@@ -71,10 +71,6 @@ class DeepSetsAttnRegressor(nn.Module):
         return self.forward_raw(set_features, set_mask)
 
 
-# 後方互換のため公開名は維持する。
-DeepSetsRegressor = DeepSetsAttnRegressor
-
-
 def build_model(model_config: dict) -> DeepSetsAttnRegressor:
     """設定辞書から注意機構付きDeepSets回帰器を構築する。"""
     required = ["input_dim", "output_dim"]
