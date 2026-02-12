@@ -1,13 +1,11 @@
-"""DeepSetsベースのサロゲート回帰モデル。"""
-
 from __future__ import annotations
-
 import torch
 from torch import Tensor, nn
+import torch.nn.functional as F
 
 
-class DeepSetsRegressor(nn.Module):
-    """可変長集合入力から正値パラメータを推定するDeepSets回帰器。"""
+class DeepSetsAttnRegressor(nn.Module):
+    """可変長集合入力 -> raw(正)パラメータ。損失側で lifetime に変換する前提。"""
 
     def __init__(
         self,
@@ -15,73 +13,66 @@ class DeepSetsRegressor(nn.Module):
         output_dim: int,
         phi_hidden_dim: int = 128,
         rho_hidden_dim: int = 128,
-        aggregation: str = "sum",
+        attn_hidden_dim: int | None = None,
+        dropout: float = 0.0,
         min_positive: float = 1e-8,
     ) -> None:
         super().__init__()
-
-        if aggregation not in {"sum", "mean"}:
-            raise ValueError(f"aggregation は 'sum' または 'mean' を指定してください: {aggregation}")
-
-        self.aggregation = aggregation
         self.min_positive = float(min_positive)
+        H = phi_hidden_dim
+        A = attn_hidden_dim if attn_hidden_dim is not None else H
 
+        # element-wise encoder φ
         self.phi = nn.Sequential(
-            nn.Linear(input_dim, phi_hidden_dim),
+            nn.Linear(input_dim, H),
             nn.ReLU(),
-            nn.Linear(phi_hidden_dim, phi_hidden_dim),
+            nn.Linear(H, H),
             nn.ReLU(),
         )
+
+        self.drop = nn.Dropout(dropout)
+
+        # attention over set elements (mask-aware)
+        self.att_fc = nn.Linear(H, A)
+        self.att_score = nn.Linear(A, 1)
+
+        # set-level regressor ρ
         self.rho = nn.Sequential(
-            nn.Linear(phi_hidden_dim, rho_hidden_dim),
+            nn.Linear(H, rho_hidden_dim),
             nn.ReLU(),
             nn.Linear(rho_hidden_dim, output_dim),
         )
 
     def forward_raw(self, set_features: Tensor, set_mask: Tensor) -> Tensor:
-        """素の正値パラメータ（例: 遷移率や寿命率）を推定する。"""
-
+        """
+        set_features: (B, S, D)
+        set_mask:     (B, S)  True for valid elements
+        returns raw:  (B, output_dim), strictly positive
+        """
         if set_features.ndim != 3:
             raise ValueError("set_features は [batch, set_size, feature_dim] を想定します。")
         if set_mask.ndim != 2:
             raise ValueError("set_mask は [batch, set_size] を想定します。")
+        if set_features.shape[:2] != set_mask.shape:
+            raise ValueError("set_features と set_mask の [batch, set_size] が一致しません。")
 
-        embedded = self.phi(set_features)
-        mask = set_mask.unsqueeze(-1).to(dtype=embedded.dtype)
-        masked = embedded * mask
+        x = self.phi(set_features)          # (B, S, H)
+        x = self.drop(x)
 
-        pooled = masked.sum(dim=1)
-        if self.aggregation == "mean":
-            denom = mask.sum(dim=1).clamp_min(1.0)
-            pooled = pooled / denom
+        # attention logits
+        a = torch.tanh(self.att_fc(x))      # (B, S, A)
+        score = self.att_score(a).squeeze(-1)  # (B, S)
 
-        logits = self.rho(pooled)
-        return torch.nn.functional.softplus(logits) + self.min_positive
+        # mask: invalid -> -inf
+        score = score.masked_fill(~set_mask, float("-inf"))
+        w = F.softmax(score, dim=1)         # (B, S)
 
-    def forward(self, set_features: Tensor, set_mask: Tensor, output_mode: str = "lifetime") -> Tensor:
-        """出力モードに応じて寿命指標または生パラメータを返す。"""
+        pooled = torch.sum(x * w.unsqueeze(-1), dim=1)  # (B, H)
 
-        raw = self.forward_raw(set_features=set_features, set_mask=set_mask)
-        if output_mode == "raw":
-            return raw
-        if output_mode == "lifetime":
-            return 1.0 / torch.clamp(raw, min=self.min_positive)
-        raise ValueError(f"output_mode は 'raw' または 'lifetime' を指定してください: {output_mode}")
+        logits = self.rho(self.drop(pooled))            # (B, output_dim)
+        raw = F.softplus(logits) + self.min_positive
+        return raw
 
-
-def build_model(model_config: dict) -> DeepSetsRegressor:
-    """設定辞書から DeepSetsRegressor を構築する。"""
-
-    required = ["input_dim", "output_dim"]
-    missing = [k for k in required if k not in model_config]
-    if missing:
-        raise ValueError(f"model_config に必須キーが不足しています: {missing}")
-
-    return DeepSetsRegressor(
-        input_dim=int(model_config["input_dim"]),
-        output_dim=int(model_config["output_dim"]),
-        phi_hidden_dim=int(model_config.get("phi_hidden_dim", 128)),
-        rho_hidden_dim=int(model_config.get("rho_hidden_dim", 128)),
-        aggregation=str(model_config.get("aggregation", "sum")),
-        min_positive=float(model_config.get("min_positive", 1e-8)),
-    )
+    def forward(self, set_features: Tensor, set_mask: Tensor) -> Tensor:
+        # 仕様どおり raw のみ返す
+        return self.forward_raw(set_features, set_mask)
