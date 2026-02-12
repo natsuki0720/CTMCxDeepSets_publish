@@ -27,22 +27,24 @@ class DeepSetsAttnRegressor(nn.Module):
         phi_dim = int(phi_hidden_dim)
         attn_dim = int(attn_hidden_dim) if attn_hidden_dim is not None else phi_dim
 
-        self.phi = nn.Sequential(
-            nn.Linear(input_dim, phi_dim),
-            nn.ReLU(),
-            nn.Linear(phi_dim, phi_dim),
-            nn.ReLU(),
-        )
-        self.drop = nn.Dropout(dropout)
+        self.phi_fc1 = nn.Linear(input_dim, phi_dim)
+        self.phi_ln1 = nn.LayerNorm(phi_dim)
+        self.phi_drop1 = nn.Dropout(dropout)
+        self.phi_fc2 = nn.Linear(phi_dim, phi_dim)
+        self.phi_ln2 = nn.LayerNorm(phi_dim)
+        self.phi_drop2 = nn.Dropout(dropout)
 
         self.att_fc = nn.Linear(phi_dim, attn_dim)
         self.att_score = nn.Linear(attn_dim, 1)
 
-        self.rho = nn.Sequential(
-            nn.Linear(phi_dim, rho_hidden_dim),
-            nn.ReLU(),
-            nn.Linear(rho_hidden_dim, output_dim),
-        )
+        rho_dim = int(rho_hidden_dim)
+        self.rho_fc1 = nn.Linear(phi_dim, rho_dim)
+        self.rho_ln1 = nn.LayerNorm(rho_dim)
+        self.rho_drop1 = nn.Dropout(dropout)
+        self.rho_fc2 = nn.Linear(rho_dim, rho_dim)
+        self.rho_ln2 = nn.LayerNorm(rho_dim)
+        self.rho_drop2 = nn.Dropout(dropout)
+        self.rho_out = nn.Linear(rho_dim, output_dim)
 
     def forward_raw(self, set_features: Tensor, set_mask: Tensor) -> Tensor:
         """正値制約付きの生パラメータを返す。"""
@@ -57,7 +59,14 @@ class DeepSetsAttnRegressor(nn.Module):
         if not torch.all(set_mask_bool.any(dim=1)):
             raise ValueError("set_mask の各バッチに少なくとも1つの有効要素が必要です。")
 
-        x = self.drop(self.phi(set_features))
+        x = self.phi_fc1(set_features)
+        x = self.phi_ln1(x)
+        x = F.gelu(x)
+        x = self.phi_drop1(x)
+        x = self.phi_fc2(x)
+        x = self.phi_ln2(x)
+        x = F.gelu(x)
+        x = self.phi_drop2(x)
 
         attn_hidden = torch.tanh(self.att_fc(x))
         score = self.att_score(attn_hidden).squeeze(-1)
@@ -65,7 +74,15 @@ class DeepSetsAttnRegressor(nn.Module):
         weight = F.softmax(score, dim=1)
 
         pooled = torch.sum(x * weight.unsqueeze(-1), dim=1)
-        logits = self.rho(self.drop(pooled))
+        y = self.rho_fc1(pooled)
+        y = self.rho_ln1(y)
+        y = F.gelu(y)
+        y = self.rho_drop1(y)
+        y = self.rho_fc2(y)
+        y = self.rho_ln2(y)
+        y = F.gelu(y)
+        y = self.rho_drop2(y)
+        logits = self.rho_out(y)
         return F.softplus(logits) + self.min_positive
 
     def forward(self, set_features: Tensor, set_mask: Tensor) -> Tensor:
