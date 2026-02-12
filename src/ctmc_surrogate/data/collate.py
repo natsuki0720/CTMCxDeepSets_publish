@@ -10,8 +10,15 @@ from torch import Tensor
 from .dataset import CTMCSample
 
 
-def ctmc_collate_fn(samples: Sequence[CTMCSample], min_positive: float = 1e-8) -> dict[str, Tensor]:
-    """可変長集合をゼロパディングし、マスク付きバッチへ変換する。"""
+def ctmc_collate_fn(samples: Sequence[CTMCSample]) -> dict[str, Tensor]:
+    """可変長集合をゼロパディングし、マスク付きバッチへ変換する。
+
+    注意:
+        返却する教師信号は ``target_raw`` のみです。
+        寿命への変換（``1 / clamp(raw, min=min_positive)``）は、
+        学習時の損失計算側で共通の min_positive 定数を用いて実施してください。
+    """
+
 
     if len(samples) == 0:
         raise ValueError("空バッチは処理できません。")
@@ -38,12 +45,9 @@ def ctmc_collate_fn(samples: Sequence[CTMCSample], min_positive: float = 1e-8) -
         set_mask[i, :n_i] = True
         target_raw[i] = sample.target_raw
 
-    target_lifetime = 1.0 / torch.clamp(target_raw, min=float(min_positive))
-
     return {
         "set_features": set_features,
         "set_mask": set_mask,
         "lengths": lengths,
         "target_raw": target_raw,
-        "target_lifetime": target_lifetime,
     }
