@@ -71,6 +71,11 @@ class DeepSetsVarSetsAttnRegressor(nn.Module):
         if lengths.ndim != 1:
             raise ValueError("lengths は shape (B,) である必要があります。")
 
+        device = state.device
+        lengths = lengths.to(device)
+        if delta_t.device != device:
+            delta_t = delta_t.to(device)
+
         bsz, _, seq_len = state.shape
         if delta_t.shape != (bsz, seq_len):
             raise ValueError("delta_t の shape は state と整合する (B, L) である必要があります。")
@@ -101,7 +106,7 @@ class DeepSetsVarSetsAttnRegressor(nn.Module):
         attn_input = torch.tanh(self.att_fc(x))
         score = self.att_score(attn_input).squeeze(-1)
 
-        positions = torch.arange(seq_len, device=lengths.device).unsqueeze(0)
+        positions = torch.arange(seq_len, device=device).unsqueeze(0)
         key_padding_mask = positions >= lengths.unsqueeze(1)
         score = score.masked_fill(key_padding_mask, float("-inf"))
         weight = F.softmax(score, dim=1)
