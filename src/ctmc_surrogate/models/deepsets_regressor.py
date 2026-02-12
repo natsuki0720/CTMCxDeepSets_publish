@@ -6,6 +6,8 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
+from ..constants import DEFAULT_MIN_POSITIVE
+
 
 class DeepSetsAttnRegressor(nn.Module):
     """可変長集合入力から正値の生パラメータを推定する注意機構付きDeepSets回帰器。"""
@@ -18,7 +20,7 @@ class DeepSetsAttnRegressor(nn.Module):
         rho_hidden_dim: int = 128,
         attn_hidden_dim: int | None = None,
         dropout: float = 0.0,
-        min_positive: float = 1e-8,
+        min_positive: float = DEFAULT_MIN_POSITIVE,
     ) -> None:
         super().__init__()
         self.min_positive = float(min_positive)
@@ -59,7 +61,7 @@ class DeepSetsAttnRegressor(nn.Module):
 
         attn_hidden = torch.tanh(self.att_fc(x))
         score = self.att_score(attn_hidden).squeeze(-1)
-        score = score.masked_fill(~set_mask_bool, float("-inf"))
+        score = score.masked_fill(~set_mask_bool, torch.finfo(score.dtype).min)
         weight = F.softmax(score, dim=1)
 
         pooled = torch.sum(x * weight.unsqueeze(-1), dim=1)
@@ -69,6 +71,9 @@ class DeepSetsAttnRegressor(nn.Module):
     def forward(self, set_features: Tensor, set_mask: Tensor) -> Tensor:
         """仕様どおり生パラメータ（raw）のみ返す。"""
         return self.forward_raw(set_features, set_mask)
+
+
+DeepSetsRegressor = DeepSetsAttnRegressor
 
 
 def build_model(model_config: dict) -> DeepSetsAttnRegressor:
@@ -89,5 +94,5 @@ def build_model(model_config: dict) -> DeepSetsAttnRegressor:
             else None
         ),
         dropout=float(model_config.get("dropout", 0.0)),
-        min_positive=float(model_config.get("min_positive", 1e-8)),
+        min_positive=float(model_config.get("min_positive", DEFAULT_MIN_POSITIVE)),
     )

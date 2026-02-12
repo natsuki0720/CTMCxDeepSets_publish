@@ -9,6 +9,8 @@ import torch
 from torch import Tensor
 from torch.utils.data import Dataset
 
+from ..constants import DEFAULT_MIN_POSITIVE
+
 
 @dataclass(frozen=True)
 class CTMCSample:
@@ -25,7 +27,6 @@ class CTMCSurrogateDataset(Dataset[CTMCSample]):
         self,
         set_features_list: Sequence[Tensor],
         target_raw_list: Sequence[Tensor],
-        min_positive: float = 1e-8,
     ) -> None:
         if len(set_features_list) != len(target_raw_list):
             raise ValueError(
@@ -37,7 +38,6 @@ class CTMCSurrogateDataset(Dataset[CTMCSample]):
             raise ValueError("空データセットは許可されません。")
 
         self._samples: list[CTMCSample] = []
-        self._min_positive = float(min_positive)
 
         expected_target_dim: int | None = None
         for i, (features, target_raw) in enumerate(zip(set_features_list, target_raw_list)):
@@ -85,7 +85,7 @@ class CTMCSurrogateDataset(Dataset[CTMCSample]):
         return self._samples[index]
 
     def get_lifetime_target(self, index: int) -> Tensor:
-        """寿命指標（逆数変換後）を返す。"""
+        """デバッグ・可視化向けに寿命指標（逆数変換後）を返す。"""
 
         raw = self._samples[index].target_raw
-        return 1.0 / torch.clamp(raw, min=self._min_positive)
+        return 1.0 / torch.clamp(raw, min=DEFAULT_MIN_POSITIVE)
