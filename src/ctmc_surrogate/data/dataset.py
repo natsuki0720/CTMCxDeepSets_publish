@@ -9,73 +9,68 @@ import torch
 from torch import Tensor
 from torch.utils.data import Dataset
 
-from ..constants import DEFAULT_MIN_POSITIVE
-
 
 @dataclass(frozen=True)
 class CTMCSample:
-    """1サンプル分の入力集合と教師信号を保持する。"""
+    """1サンプル分の状態遷移系列と教師信号を保持する。"""
 
-    set_features: Tensor
-    target_raw: Tensor
+    state: Tensor
+    delta_t: Tensor
+    target: Tensor
 
 
 class CTMCSurrogateDataset(Dataset[CTMCSample]):
-    """可変長集合入力を扱うCTMCサロゲート推定用データセット。"""
+    """可変長系列入力を扱うCTMCサロゲート推定用データセット。"""
 
     def __init__(
         self,
-        set_features_list: Sequence[Tensor],
-        target_raw_list: Sequence[Tensor],
+        state_list: Sequence[Tensor],
+        delta_t_list: Sequence[Tensor],
+        target_list: Sequence[Tensor],
     ) -> None:
-        if len(set_features_list) != len(target_raw_list):
+        if not (len(state_list) == len(delta_t_list) == len(target_list)):
             raise ValueError(
-                "入力集合と教師ラベルの件数が一致しません。"
-                f" set_features={len(set_features_list)}, target={len(target_raw_list)}"
+                "入力と教師ラベルの件数が一致しません。"
+                f" state={len(state_list)}, delta_t={len(delta_t_list)}, target={len(target_list)}"
             )
-
-        if len(set_features_list) == 0:
+        if len(state_list) == 0:
             raise ValueError("空データセットは許可されません。")
 
         self._samples: list[CTMCSample] = []
-
         expected_target_dim: int | None = None
-        for i, (features, target_raw) in enumerate(zip(set_features_list, target_raw_list)):
-            if features.ndim != 2:
-                raise ValueError(f"set_features[{i}] は2次元テンソルである必要があります。")
-            if target_raw.ndim != 1:
-                raise ValueError(f"target_raw[{i}] は1次元テンソルである必要があります。")
+
+        for i, (state, delta_t, target) in enumerate(zip(state_list, delta_t_list, target_list)):
+            if state.ndim != 2 or state.shape[0] != 2:
+                raise ValueError(f"state[{i}] は shape (2, Li) である必要があります。")
+            if delta_t.ndim != 1:
+                raise ValueError(f"delta_t[{i}] は shape (Li,) の1次元テンソルである必要があります。")
+            if target.ndim != 1:
+                raise ValueError(f"target[{i}] は shape (output_dim,) の1次元テンソルである必要があります。")
+
+            seq_len = int(state.shape[1])
+            if seq_len < 1:
+                raise ValueError(f"state[{i}] の系列長 Li は 1 以上である必要があります。")
+            if int(delta_t.shape[0]) != seq_len:
+                raise ValueError(f"state[{i}] と delta_t[{i}] の系列長が一致していません。")
 
             if expected_target_dim is None:
-                expected_target_dim = int(target_raw.shape[0])
-            elif expected_target_dim != int(target_raw.shape[0]):
-                raise ValueError("全サンプルで target_raw の次元を一致させてください。")
-
-            features_tensor = features.to(dtype=torch.float32)
-            target_tensor = target_raw.to(dtype=torch.float32)
-            if torch.any(target_tensor <= 0.0):
-                raise ValueError(
-                    "target_raw には正の値のみを指定してください。"
-                    f" 非正値が set index={i} に含まれます。"
-                )
+                expected_target_dim = int(target.shape[0])
+            elif expected_target_dim != int(target.shape[0]):
+                raise ValueError("全サンプルで target の次元を一致させてください。")
 
             self._samples.append(
-                CTMCSample(set_features=features_tensor, target_raw=target_tensor)
+                CTMCSample(
+                    state=state.to(dtype=torch.long),
+                    delta_t=delta_t.to(dtype=torch.float32),
+                    target=target.to(dtype=torch.float32),
+                )
             )
 
-        self._feature_dim = int(self._samples[0].set_features.shape[1])
-        self._target_dim = int(self._samples[0].target_raw.shape[0])
-
-    @property
-    def feature_dim(self) -> int:
-        """入力特徴量次元を返す。"""
-
-        return self._feature_dim
+        self._target_dim = int(self._samples[0].target.shape[0])
 
     @property
     def target_dim(self) -> int:
         """教師信号次元を返す。"""
-
         return self._target_dim
 
     def __len__(self) -> int:
@@ -83,9 +78,3 @@ class CTMCSurrogateDataset(Dataset[CTMCSample]):
 
     def __getitem__(self, index: int) -> CTMCSample:
         return self._samples[index]
-
-    def get_lifetime_target(self, index: int) -> Tensor:
-        """デバッグ・可視化向けに寿命指標（逆数変換後）を返す。"""
-
-        raw = self._samples[index].target_raw
-        return 1.0 / torch.clamp(raw, min=DEFAULT_MIN_POSITIVE)
