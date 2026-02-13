@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import torch
-from torch import Tensor
+import numpy as np
+from numpy.random import Generator
 
 from .config import DatasetGenerationConfig, MultiDatasetConfig
 from .delta_t import DirichletDeltaT
@@ -26,7 +26,7 @@ class CTMCTransitionSample:
 class GeneratedDataset:
     """生成済みデータセット。"""
 
-    q_matrix: Tensor
+    q_matrix: list[list[float]]
     samples: list[CTMCTransitionSample]
 
 
@@ -41,7 +41,7 @@ class DataGenerator:
         self._matrix_generator = DiagonalTransitionRateMatrixGenerator(config.transition_rate)
         self._calc_prob = CalcProbmatrix()
 
-    def generate_matrix(self, rng: torch.Generator) -> GeneratedDataset:
+    def generate_matrix(self, rng: Generator) -> GeneratedDataset:
         """Q行列と遷移サンプル群を生成する。"""
         q_matrix = self._matrix_generator.generate(rng)
         n_state = q_matrix.shape[0]
@@ -51,11 +51,11 @@ class DataGenerator:
 
         samples: list[CTMCTransitionSample] = []
         for _ in range(self._config.num_samples):
-            start_state = int(torch.multinomial(init_state_probs, 1, replacement=True, generator=rng).item())
+            start_state = int(rng.choice(n_state - 1, p=init_state_probs))
             delta_t = delta_t_generator.sample()
 
             prob = self._calc_prob(q_matrix, delta_t)
-            next_state = int(torch.multinomial(prob[start_state], 1, replacement=True, generator=rng).item())
+            next_state = int(rng.choice(n_state, p=prob[start_state]))
 
             samples.append(
                 CTMCTransitionSample(
@@ -65,12 +65,12 @@ class DataGenerator:
                 )
             )
 
-        return GeneratedDataset(q_matrix=q_matrix, samples=samples)
+        return GeneratedDataset(q_matrix=q_matrix.tolist(), samples=samples)
 
 
-def _dirichlet_ones(size: int, rng: torch.Generator) -> Tensor:
-    uniform = torch.rand(size, generator=rng, dtype=torch.float64)
-    raw = -torch.log(uniform.clamp_min(1e-12))
+def _dirichlet_ones(size: int, rng: Generator) -> np.ndarray:
+    uniform = rng.random(size)
+    raw = -np.log(uniform)
     return raw / raw.sum()
 
 
@@ -83,7 +83,7 @@ def generate_multiple_datasets(config: MultiDatasetConfig) -> list[GeneratedData
     results: list[GeneratedDataset] = []
     for dataset_id in range(config.num_datasets):
         child_seed = (config.base_seed * 1_000_003 + dataset_id) % (2**63 - 1)
-        rng = torch.Generator().manual_seed(child_seed)
+        rng = np.random.default_rng(child_seed)
         results.append(generator.generate_matrix(rng))
 
     return results
