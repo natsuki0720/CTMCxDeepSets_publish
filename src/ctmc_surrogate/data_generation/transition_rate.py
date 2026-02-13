@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import torch
 from torch import Tensor
 
@@ -18,16 +19,16 @@ class DiagonalTransitionRateMatrixGenerator:
             raise ValueError("lifetime_upper は1より大きい必要があります。")
         self._config = config
 
-    def generate(self, rng: torch.Generator) -> Tensor:
-        """推移率行列Qを生成する。"""
+    def generate(self, rng: np.random.Generator) -> tuple[Tensor, np.ndarray]:
+        """推移率行列Qと遷移率lambdaを生成する。"""
         n = self._config.num_states
-        q = torch.zeros((n, n), dtype=torch.float64)
 
-        nus = 1.0 + (self._config.lifetime_upper - 1.0) * torch.rand(n - 1, generator=rng, dtype=torch.float64)
+        nus = rng.uniform(1.0, self._config.lifetime_upper, size=n - 1)
         lambdas = 1.0 / nus
 
-        row_idx = torch.arange(n - 1)
-        q[row_idx, row_idx] = -lambdas
-        q[row_idx, row_idx + 1] = lambdas
+        q = np.zeros((n, n), dtype=np.float64)
+        idx = np.arange(n - 1)
+        q[idx, idx] = -lambdas
+        q[idx, idx + 1] = lambdas
 
-        return q
+        return torch.from_numpy(q).to(dtype=torch.float64), lambdas
