@@ -9,6 +9,7 @@ from numpy.random import Generator
 
 from .config import DatasetGenerationConfig, MultiDatasetConfig
 from .delta_t import DirichletDeltaT
+from .mle_diagonal_exp import LikelihoodDiagonalExp
 from .probability import CalcProbmatrix
 from .transition_rate import DiagonalTransitionRateMatrixGenerator
 
@@ -27,6 +28,7 @@ class GeneratedDataset:
     """生成済みデータセット。"""
 
     q_matrix: list[list[float]]
+    q_mle: list[list[float]] | None
     samples: list[CTMCTransitionSample]
 
 
@@ -65,7 +67,28 @@ class DataGenerator:
                 )
             )
 
-        return GeneratedDataset(q_matrix=q_matrix.tolist(), samples=samples)
+        q_mle: list[list[float]] | None = None
+        if self._config.enable_mle:
+            mle_data = np.array(
+                [[sample.start_state, sample.next_state, sample.delta_t] for sample in samples],
+                dtype=float,
+            )
+            init_r = np.array(self._resolve_mle_init_r(n_state), dtype=float)
+            likelihood = LikelihoodDiagonalExp(mle_data, num_state=n_state)
+            q_mle_matrix = likelihood.optimize(init_r)
+            q_mle = q_mle_matrix.tolist()
+
+        return GeneratedDataset(q_matrix=q_matrix.tolist(), q_mle=q_mle, samples=samples)
+
+    def _resolve_mle_init_r(self, n_state: int) -> list[float]:
+        expected_len = n_state - 1
+        if self._config.mle_init_r is None:
+            return [-0.5 * (i + 1) for i in range(expected_len)]
+
+        init_r = list(self._config.mle_init_r)
+        if len(init_r) != expected_len:
+            raise ValueError(f"mle_init_r の長さは {expected_len} である必要があります。")
+        return init_r
 
 
 def _dirichlet_ones(size: int, rng: Generator) -> np.ndarray:
