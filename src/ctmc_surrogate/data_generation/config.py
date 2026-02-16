@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from typing import Sequence
+
 
 @dataclass(frozen=True)
 class TransitionRateConfig:
@@ -31,6 +33,8 @@ class DatasetGenerationConfig:
     num_samples: int = 1000
     transition_rate: TransitionRateConfig = field(default_factory=TransitionRateConfig)
     delta_t: DeltaTSamplingConfig = field(default_factory=DeltaTSamplingConfig)
+    enable_mle: bool = True
+    mle_init_r: Sequence[float] | None = None
 
 
 @dataclass(frozen=True)
