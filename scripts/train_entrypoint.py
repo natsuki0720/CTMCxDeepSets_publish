@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""合成CSVデータ向け学習エントリーポイント。"""
+"""合成CSVからCTMC surrogate学習を実行するエントリーポイント。
+
+使い方:
+  python train_entrypoint.py --data-dir ./data --n 200 --out-dir ./runs/run1
+
+主要オプション:
+  --data-dir, --n, --out-dir, --val-ratio, --min-lambda, --max-lambda
+"""
 
 from __future__ import annotations
 
@@ -87,6 +94,8 @@ def _build_dataset_from_filewise(datasets: list[ParsedCTMCDataset]) -> CTMCSurro
             raise ValueError(f"samples 形状が不正です: path={ds.path}, shape={ds.samples.shape}")
 
         n_state = int(ds.q.shape[0])
+        if ds.q_mle is None:
+            raise ValueError(f"q_mle is None for dataset: {ds.path}")
         if ds.q.shape != (n_state, n_state) or ds.q_mle.shape != (n_state, n_state):
             raise ValueError(f"Q / Q' 形状が不正です: path={ds.path}, q={ds.q.shape}, q_mle={ds.q_mle.shape}")
 
@@ -100,7 +109,9 @@ def _build_dataset_from_filewise(datasets: list[ParsedCTMCDataset]) -> CTMCSurro
 
         state = torch.as_tensor(ds.samples[:, :2].T, dtype=torch.long)
         delta_t = torch.as_tensor(ds.samples[:, 2], dtype=torch.float32)
-        target = torch.as_tensor(extract_lambdas_from_Q(ds.q), dtype=torch.float32)
+        if not np.isfinite(ds.q_mle).all():
+            raise ValueError(f"q_mle has NaN/Inf for dataset: {ds.path}")
+        target = torch.as_tensor(extract_lambdas_from_Q(ds.q_mle), dtype=torch.float32)
 
         state_list.append(state)
         delta_t_list.append(delta_t)
