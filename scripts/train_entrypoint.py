@@ -5,7 +5,21 @@
   python train_entrypoint.py --data-dir ./data --n 200 --out-dir ./runs/run1
 
 主要オプション:
-  --data-dir, --n, --out-dir, --val-ratio, --min-lambda, --max-lambda
+  --data-dir: 学習対象の合成CSV群が格納されたディレクトリ
+  --n: スクリーニング通過後にランダム抽出して学習に使う件数
+  --out-dir: 学習結果（モデル・ログ・設定）を書き出すディレクトリ
+  --recursive: data-dir配下を再帰的に探索してCSVを収集
+  --val-ratio: 検証データに割り当てる割合（0.0〜1.0）
+  --min-lambda: スクリーニング時に許容するλの下限値
+  --max-lambda: スクリーニング時に許容するλの上限値
+  --no-structure-check: データ構造に関する検証をスキップ
+  --no-naninf-check: NaN/Infに関する検証をスキップ
+  --epochs: 学習エポック数
+  --batch-size: ミニバッチサイズ
+  --lr: 最適化で使用する学習率
+  --patience: Early Stoppingの打ち切り待機エポック数
+  --num-workers: DataLoaderで使う並列ワーカ数
+  --device: 学習に使うデバイス（例: cuda, cpu）
 """
 
 from __future__ import annotations
