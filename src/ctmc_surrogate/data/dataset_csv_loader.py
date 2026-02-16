@@ -109,6 +109,67 @@ def parse_ctmc_csv(path: str | Path) -> ParsedCTMCDataset:
     )
 
 
+def parse_ctmc_csv_header(path: str | Path) -> tuple[np.ndarray, np.ndarray]:
+    """1 つの CTMC CSV から Q / Q' のみを軽量に読み込む。"""
+
+    csv_path = Path(path)
+    if not csv_path.exists():
+        raise FileNotFoundError(f"CSVファイルが存在しません: {csv_path}")
+    if not csv_path.is_file():
+        raise ValueError(f"指定パスはファイルではありません: {csv_path}")
+
+    with csv_path.open("r", encoding="utf-8", newline="") as f:
+        reader = csv.reader(f)
+        try:
+            first_row = next(reader)
+        except StopIteration as exc:
+            raise ValueError(f"CSVが空です: {csv_path}") from exc
+
+        if not first_row:
+            raise ValueError(f"1行目から列数 N を推定できません: {csv_path}")
+
+        n = len(first_row)
+        if n <= 0:
+            raise ValueError(f"1行目から列数 N を推定できません: {csv_path}")
+
+        q = np.empty((n, n), dtype=np.float64)
+        q_mle = np.empty((n, n), dtype=np.float64)
+
+        if len(first_row) != n:
+            raise ValueError(
+                f"列数が不一致です: path={csv_path}, row=0, expected_n={n}, actual={len(first_row)}"
+            )
+        for c in range(n):
+            q[0, c] = _to_float(first_row[c], csv_path, 0, c)
+
+        for r in range(1, 2 * n):
+            try:
+                row = next(reader)
+            except StopIteration as exc:
+                raise ValueError(
+                    f"行数不足です (rows < 2N): path={csv_path}, rows={r}, N={n}"
+                ) from exc
+
+            if not row:
+                raise ValueError(
+                    f"列数が不一致です: path={csv_path}, row={r}, expected_n={n}, actual=0"
+                )
+            if len(row) != n:
+                raise ValueError(
+                    f"列数が不一致です: path={csv_path}, row={r}, expected_n={n}, actual={len(row)}"
+                )
+
+            if r < n:
+                for c in range(n):
+                    q[r, c] = _to_float(row[c], csv_path, r, c)
+            else:
+                rr = r - n
+                for c in range(n):
+                    q_mle[rr, c] = _to_float(row[c], csv_path, r, c)
+
+    return q, q_mle
+
+
 def load_dir(dir_path: str | Path, recursive: bool = False) -> list[ParsedCTMCDataset]:
     """ディレクトリ配下の CSV を探索し、全件をパースする。"""
 
