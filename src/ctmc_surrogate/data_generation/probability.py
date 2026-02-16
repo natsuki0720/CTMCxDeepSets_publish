@@ -32,7 +32,8 @@ def transition_row(lambdas: np.ndarray, start_index: int, delta_t: float, eps: f
         raise ValueError("start_index が状態数の範囲外です。")
 
     lambda_ext = np.zeros(n, dtype=np.float64)
-    lambda_ext[: n - 1] = np.maximum(lambdas, eps)
+    lambda_ext[: n - 1] = lambdas
+    lambda_ext[n - 1] = 0.0
 
     for a in range(start_index, n):
         for b in range(a + 1, n):

@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 class TransitionRateConfig:
     """推移率行列生成の設定。"""
 
-    num_states: int
+    num_states: int = 4
     lifetime_upper: float = 100.0
 
 
@@ -28,8 +28,8 @@ class DeltaTSamplingConfig:
 class DatasetGenerationConfig:
     """1データセット生成の設定。"""
 
-    num_samples: int
-    transition_rate: TransitionRateConfig
+    num_samples: int = 1000
+    transition_rate: TransitionRateConfig = field(default_factory=TransitionRateConfig)
     delta_t: DeltaTSamplingConfig = field(default_factory=DeltaTSamplingConfig)
 
 
@@ -37,6 +37,6 @@ class DatasetGenerationConfig:
 class MultiDatasetConfig:
     """複数データセット生成の設定。"""
 
-    num_datasets: int
-    base_seed: int
-    dataset: DatasetGenerationConfig
+    num_datasets: int = 1
+    base_seed: int = 42
+    dataset: DatasetGenerationConfig = field(default_factory=DatasetGenerationConfig)
