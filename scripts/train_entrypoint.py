@@ -48,7 +48,7 @@ from ctmc_surrogate.data.dataset import CTMCSurrogateDataset
 from ctmc_surrogate.data.dataset_csv_loader import ParsedCTMCDataset, load_dir
 from ctmc_surrogate.data.dataset_screening import ScreeningConfig, extract_lambdas_from_Q, screen_datasets
 from ctmc_surrogate.models import build_model
-from ctmc_surrogate.train import EarlyStoppingConfig, TrainLoopConfig, fit, save_run_artifacts
+from ctmc_surrogate.train import EarlyStoppingConfig, TrainLoopConfig, fit, save_run_artifacts, CustomLoss
 
 
 def _parse_args() -> argparse.Namespace:
@@ -256,7 +256,7 @@ def main() -> None:
         "num_categories": first_n,
         "embedding_dim": 16,
         "output_dim": first_n - 1,
-        "input_is_one_based": True,
+        "input_is_one_based": False,
     }
     model = build_model(model_config)
 
@@ -272,6 +272,7 @@ def main() -> None:
         train_loader=train_loader,
         valid_loader=val_loader,
         config=loop_cfg,
+        loss_fn=CustomLoss(),
     )
 
     save_run_artifacts(
