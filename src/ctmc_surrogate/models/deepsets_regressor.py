@@ -6,8 +6,6 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-from ..constants import DEFAULT_MIN_POSITIVE
-
 
 class DeepSetsVarSetsAttnRegressor(nn.Module):
     """(state, delta_t, lengths) から正値の生パラメータを推定する回帰器。"""
@@ -23,12 +21,9 @@ class DeepSetsVarSetsAttnRegressor(nn.Module):
         output_hidden2: int = 64,
         dropout: float = 0.2,
         input_is_one_based: bool = True,
-        min_positive: float = DEFAULT_MIN_POSITIVE,
     ) -> None:
         super().__init__()
         self.input_is_one_based = bool(input_is_one_based)
-        self.min_positive = float(min_positive)
-
         self.embedding = nn.Embedding(
             num_embeddings=int(num_categories) + 1,
             embedding_dim=int(embedding_dim),
@@ -124,7 +119,10 @@ class DeepSetsVarSetsAttnRegressor(nn.Module):
         h = self.out_drop2(h)
 
         logits = self.out_fc3(h)
-        return F.softplus(logits) + self.min_positive
+        output = F.softplus(logits)
+        if __debug__:
+            assert torch.all(output >= 0), "softplus 出力が 0 未満になっています。"
+        return output
 
 
 def build_model(model_config: dict) -> DeepSetsVarSetsAttnRegressor:
@@ -144,5 +142,4 @@ def build_model(model_config: dict) -> DeepSetsVarSetsAttnRegressor:
         dropout=float(model_config.get("dropout", 0.0)),
         input_is_one_based=bool(model_config.get("input_is_one_based", True)),
         output_dim=int(model_config["output_dim"]),
-        min_positive=float(model_config.get("min_positive", DEFAULT_MIN_POSITIVE)),
     )
