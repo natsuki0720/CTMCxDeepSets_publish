@@ -21,7 +21,7 @@ class DeepSetsVarSetsAttnRegressor(nn.Module):
         token_hidden2: int = 512,
         output_hidden1: int = 128,
         output_hidden2: int = 64,
-        dropout: float = 0.0,
+        dropout: float = 0.2,
         input_is_one_based: bool = True,
         min_positive: float = DEFAULT_MIN_POSITIVE,
     ) -> None:
