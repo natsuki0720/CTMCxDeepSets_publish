@@ -183,16 +183,26 @@ def save_run_artifacts(
     model_config: dict[str, Any],
     metrics: TrainResult,
 ) -> None:
-    """学習成果物を run_dir に保存する。"""
+    """学習成果物を run_dir に保存する。
+
+    保存先仕様:
+      - モデル設定: ``run_dir/model_config.yaml``
+      - 学習指標: ``run_dir/metrics.json``
+      - モデル重み: ``run_dir/weights/best_model.pt``
+
+    ``weights`` ディレクトリは存在しない場合に自動作成する。
+    """
     run_path = Path(run_dir)
     run_path.mkdir(parents=True, exist_ok=True)
+    weights_dir = run_path / "weights"
+    weights_dir.mkdir(parents=True, exist_ok=True)
 
     model_config_path = run_path / "model_config.yaml"
-    best_model_path = run_path / "best_model.pt"
+    best_model_weights_path = weights_dir / "best_model.pt"
     metrics_path = run_path / "metrics.json"
 
     _write_yaml_like_dict(model_config_path, model_config)
-    torch.save(model.state_dict(), best_model_path)
+    torch.save(model.state_dict(), best_model_weights_path)
 
     with metrics_path.open("w", encoding="utf-8") as fp:
         json.dump(asdict(metrics), fp, ensure_ascii=False, indent=2)
