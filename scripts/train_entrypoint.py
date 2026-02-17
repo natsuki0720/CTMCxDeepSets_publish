@@ -74,15 +74,15 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42, help="抽出・分割シード")
 
     parser.add_argument("--min-lambda", type=float, default=1e-8, help="スクリーニング下限")
-    parser.add_argument("--max-lambda", type=float, default=1e6, help="スクリーニング上限")
+    parser.add_argument("--max-lambda", type=float, default=1e4, help="スクリーニング上限")
     parser.add_argument("--no-structure-check", action="store_true", help="構造チェックを無効化")
     parser.add_argument("--no-naninf-check", action="store_true", help="NaN/Infチェックを無効化")
 
-    parser.add_argument("--epochs", type=int, default=100, help="学習エポック数")
-    parser.add_argument("--batch-size", type=int, default=256, help="バッチサイズ")
+    parser.add_argument("--epochs", type=int, default=1000, help="学習エポック数")
+    parser.add_argument("--batch-size", type=int, default=128, help="バッチサイズ")
     parser.add_argument("--lr", type=float, default=1e-3, help="学習率")
     parser.add_argument("--patience", type=int, default=10, help="Early Stoppingのpatience")
-    parser.add_argument("--num-workers", type=int, default=4, help="DataLoaderのワーカ数")
+    parser.add_argument("--num-workers", type=int, default=32, help="DataLoaderのワーカ数")
     parser.add_argument(
         "--device",
         type=str,
@@ -254,7 +254,7 @@ def main() -> None:
     first_n = int(train_sets[0].q.shape[0])
     model_config = {
         "num_categories": first_n,
-        "embedding_dim": 64,
+        "embedding_dim": 16,
         "output_dim": first_n - 1,
         "input_is_one_based": True,
     }
