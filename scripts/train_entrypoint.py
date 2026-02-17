@@ -2,12 +2,14 @@
 """合成CSVからCTMC surrogate学習を実行するエントリーポイント。
 
 使い方:
-  python train_entrypoint.py --data-dir ./data --n 200 --out-dir ./runs/run1
+  python train_entrypoint.py --data-dir ./data --n 200 --out-dir ./runs
 
 主要オプション:
   --data-dir: 学習対象の合成CSV群が格納されたディレクトリ
   --n: スクリーニング通過後にランダム抽出して学習に使う件数
-  --out-dir: 学習結果（モデル・ログ・設定）を書き出すディレクトリ
+  --out-dir: 学習成果物の保存先。既定では run サブディレクトリを自動作成
+  --no-auto-run-dir: out-dir 直下に直接保存（上級者向け）
+  --run-name: 自動作成時の run ディレクトリ名を明示指定（未指定時はタイムスタンプ）
   --recursive: data-dir配下を再帰的に探索してCSVを収集
   --val-ratio: 検証データに割り当てる割合（0.0〜1.0）
   --min-lambda: スクリーニング時に許容するλの下限値
@@ -29,6 +31,7 @@ import json
 import sys
 from collections import Counter
 from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -53,7 +56,18 @@ def _parse_args() -> argparse.Namespace:
 
     parser.add_argument("--data-dir", type=Path, required=True, help="合成CSVのディレクトリ")
     parser.add_argument("--n", type=int, required=True, help="スクリーニング通過後に使用するデータセット数")
-    parser.add_argument("--out-dir", type=Path, required=True, help="学習ログ/モデル保存先")
+    parser.add_argument("--out-dir", type=Path, required=True, help="学習成果物の保存先（run親ディレクトリ）")
+    parser.add_argument(
+        "--no-auto-run-dir",
+        action="store_true",
+        help="out-dir直下に直接成果物を保存する（既定ではrunサブディレクトリを自動作成）",
+    )
+    parser.add_argument(
+        "--run-name",
+        type=str,
+        default=None,
+        help="auto-run-dir有効時のrunディレクトリ名。未指定時はタイムスタンプ名を利用",
+    )
 
     parser.add_argument("--recursive", action="store_true", help="data-dir配下を再帰探索する")
     parser.add_argument("--val-ratio", type=float, default=0.1, help="validation比率")
@@ -94,6 +108,36 @@ def _validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--patience は1以上で指定してください。")
     if args.num_workers < 0:
         raise ValueError("--num-workers は0以上で指定してください。")
+    if bool(args.no_auto_run_dir) and args.run_name is not None:
+        raise ValueError("--no-auto-run-dir 指定時は --run-name を併用できません。")
+
+
+def _resolve_run_dir(out_dir: Path, no_auto_run_dir: bool, run_name: str | None) -> Path:
+    """出力先ディレクトリを解決して返す。
+
+    既定では `out_dir` 配下に run サブディレクトリを自動作成する。
+    `--no-auto-run-dir` 指定時のみ `out_dir` 直下へ成果物を保存する。
+
+    Args:
+        out_dir: CLIで指定された出力先。
+        no_auto_run_dir: 直下保存を有効化するフラグ。
+        run_name: run ディレクトリ名。未指定時はタイムスタンプを使用。
+
+    Returns:
+        実際に成果物を書き込む run ディレクトリ。
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if no_auto_run_dir:
+        return out_dir
+
+    base_name = run_name or datetime.now().strftime("run_%Y%m%d_%H%M%S")
+    candidate = out_dir / base_name
+    suffix = 1
+    while candidate.exists():
+        candidate = out_dir / f"{base_name}_{suffix:02d}"
+        suffix += 1
+    candidate.mkdir(parents=True, exist_ok=False)
+    return candidate
 
 
 def _build_dataset_from_filewise(datasets: list[ParsedCTMCDataset]) -> CTMCSurrogateDataset:
@@ -146,7 +190,7 @@ def main() -> None:
     args = _parse_args()
     _validate_args(args)
 
-    args.out_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = _resolve_run_dir(args.out_dir, no_auto_run_dir=bool(args.no_auto_run_dir), run_name=args.run_name)
 
     datasets = load_dir(args.data_dir, recursive=bool(args.recursive))
 
@@ -231,7 +275,7 @@ def main() -> None:
     )
 
     save_run_artifacts(
-        run_dir=args.out_dir,
+        run_dir=run_dir,
         model=model,
         model_config=model_config,
         metrics=train_result,
@@ -241,9 +285,10 @@ def main() -> None:
         **vars(args),
         "data_dir": str(args.data_dir),
         "out_dir": str(args.out_dir),
+        "resolved_run_dir": str(run_dir),
         "screening_config": asdict(cfg),
     }
-    (args.out_dir / "run_config.json").write_text(
+    (run_dir / "run_config.json").write_text(
         json.dumps(run_config_payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
@@ -256,7 +301,7 @@ def main() -> None:
         "selected_paths": [d.path for d in selected],
         **_build_screening_report_payload(screening.report),
     }
-    (args.out_dir / "screening_report.json").write_text(
+    (run_dir / "screening_report.json").write_text(
         json.dumps(screening_payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
