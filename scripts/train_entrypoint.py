@@ -84,6 +84,13 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--patience", type=int, default=10, help="Early Stoppingのpatience")
     parser.add_argument("--num-workers", type=int, default=32, help="DataLoaderのワーカ数")
     parser.add_argument(
+        "--state-index-base",
+        type=str,
+        choices=["auto", "zero", "one"],
+        default="auto",
+        help="状態IDの基準。autoはCSV値から0始まり/1始まりを推定（曖昧時はエラー）",
+    )
+    parser.add_argument(
         "--device",
         type=str,
         default=("cuda" if torch.cuda.is_available() else "cpu"),
@@ -140,7 +147,52 @@ def _resolve_run_dir(out_dir: Path, no_auto_run_dir: bool, run_name: str | None)
     return candidate
 
 
-def _build_dataset_from_filewise(datasets: list[ParsedCTMCDataset]) -> CTMCSurrogateDataset:
+def _validate_state_range(ds: ParsedCTMCDataset, n_state: int, state_index_base: str) -> None:
+    state_min = int(np.min(ds.samples[:, :2]))
+    state_max = int(np.max(ds.samples[:, :2]))
+    if state_index_base == "one":
+        if state_min < 1 or state_max > n_state:
+            raise ValueError(
+                "状態IDが範囲外です: "
+                f"path={ds.path}, base=one, allowed=[1,{n_state}], actual=[{state_min},{state_max}]"
+            )
+        return
+
+    if state_index_base == "zero":
+        if state_min < 0 or state_max > (n_state - 1):
+            raise ValueError(
+                "状態IDが範囲外です: "
+                f"path={ds.path}, base=zero, allowed=[0,{n_state - 1}], actual=[{state_min},{state_max}]"
+            )
+        return
+
+    raise ValueError(f"未対応の state_index_base です: {state_index_base}")
+
+
+def _infer_state_index_base(datasets: list[ParsedCTMCDataset]) -> str:
+    is_zero_based_all = True
+    is_one_based_all = True
+    for ds in datasets:
+        n_state = int(ds.q.shape[0])
+        state_min = int(np.min(ds.samples[:, :2]))
+        state_max = int(np.max(ds.samples[:, :2]))
+        if not (state_min >= 0 and state_max <= (n_state - 1)):
+            is_zero_based_all = False
+        if not (state_min >= 1 and state_max <= n_state):
+            is_one_based_all = False
+
+    if is_one_based_all and not is_zero_based_all:
+        return "one"
+    if is_zero_based_all and not is_one_based_all:
+        return "zero"
+
+    raise ValueError(
+        "状態ID基準を自動判定できません。"
+        " --state-index-base を zero または one で明示指定してください。"
+    )
+
+
+def _build_dataset_from_filewise(datasets: list[ParsedCTMCDataset], state_index_base: str) -> CTMCSurrogateDataset:
     state_list: list[torch.Tensor] = []
     delta_t_list: list[torch.Tensor] = []
     target_list: list[torch.Tensor] = []
@@ -164,6 +216,8 @@ def _build_dataset_from_filewise(datasets: list[ParsedCTMCDataset]) -> CTMCSurro
 
         if ds.samples.shape[0] < 1:
             raise ValueError(f"系列長0のデータセットは学習に使えません: path={ds.path}")
+
+        _validate_state_range(ds, n_state=n_state, state_index_base=state_index_base)
 
         state = torch.as_tensor(ds.samples[:, :2].T, dtype=torch.long)
         delta_t = torch.as_tensor(ds.samples[:, 2], dtype=torch.float32)
@@ -227,8 +281,12 @@ def main() -> None:
     if len(val_sets) == 0:
         val_sets = train_sets
 
-    train_dataset = _build_dataset_from_filewise(train_sets)
-    val_dataset = _build_dataset_from_filewise(val_sets)
+    resolved_state_index_base = (
+        _infer_state_index_base(selected) if str(args.state_index_base) == "auto" else str(args.state_index_base)
+    )
+
+    train_dataset = _build_dataset_from_filewise(train_sets, state_index_base=resolved_state_index_base)
+    val_dataset = _build_dataset_from_filewise(val_sets, state_index_base=resolved_state_index_base)
 
     pin_memory = str(args.device).startswith("cuda")
 
@@ -256,7 +314,7 @@ def main() -> None:
         "num_categories": first_n,
         "embedding_dim": 16,
         "output_dim": first_n - 1,
-        "input_is_one_based": False,
+        "input_is_one_based": (resolved_state_index_base == "one"),
     }
     model = build_model(model_config)
 
@@ -287,6 +345,7 @@ def main() -> None:
         "data_dir": str(args.data_dir),
         "out_dir": str(args.out_dir),
         "resolved_run_dir": str(run_dir),
+        "resolved_state_index_base": resolved_state_index_base,
         "screening_config": asdict(cfg),
     }
     (run_dir / "run_config.json").write_text(
