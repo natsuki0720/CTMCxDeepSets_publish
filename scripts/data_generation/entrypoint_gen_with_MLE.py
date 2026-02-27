@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""CTMCデータセット生成CLI（Q/Q'とサンプルをCSV保存）。
+"""CLI to generate CTMC datasets and save each dataset as a CSV file.
 
-使い方:
+Usage:
     python scripts/data_generation/entrypoint_gen_with_MLE.py \
         --count 10 \
         --out-dir ./artifacts/generated_csv
 
-主要オプション例:
-    # 状態数・寿命上限・サンプル数範囲を指定
+Key options:
+    # Specify state count, lifetime upper bound, and sample count range
     python scripts/data_generation/entrypoint_gen_with_MLE.py \
         --count 5 \
         --out-dir ./artifacts/generated_csv \
@@ -18,20 +18,20 @@
         --base-seed 20250924 \
         --init-r "-0.5,-1,-1.5"
 
-    # 並列実行（--run-parallel 指定時のみ有効）
+    # Run in parallel (enabled only when --run-parallel is set)
     python scripts/data_generation/entrypoint_gen_with_MLE.py \
         --count 20 \
         --out-dir ./artifacts/generated_csv \
         --run-parallel \
         --workers 8
 
-出力形式:
-    - `dataset_0000.csv`, `dataset_0001.csv`, ... を出力
-    - 各CSVは以下の順で縦結合
-      1) 真のQ行列（N行×N列）
-      2) MLE推定Q'行列（N行×N列）
-      3) サンプル行（各行N列）
-         `[state_pre, state_post, delta_t] + 必要個数の0埋め`
+Output format:
+    - Writes files such as `dataset_0000.csv`, `dataset_0001.csv`, ...
+    - Each CSV is a vertical concatenation in the following order:
+      1) True Q matrix (N rows x N cols)
+      2) MLE-estimated Q' matrix (N rows x N cols)
+      3) Sample rows (N cols per row)
+         `[state_pre, state_post, delta_t] + zero padding as needed`
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ _THREAD_ENV_VARS = (
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="CTMCデータセットを複数生成してCSV保存します。")
+    parser = argparse.ArgumentParser(description="Generate multiple CTMC datasets and export them as CSV files.")
     parser.add_argument("--count", type=int, required=True)
     parser.add_argument("--out-dir", type=Path, required=True)
 
@@ -81,7 +81,7 @@ def _parse_args() -> argparse.Namespace:
 def _parse_init_r(raw: str) -> list[float]:
     values = [token.strip() for token in raw.split(",") if token.strip()]
     if not values:
-        raise ValueError("--init-r が空です。")
+        raise ValueError("--init-r must not be empty.")
     return [float(v) for v in values]
 
 
@@ -118,18 +118,18 @@ def _write_dataset_csv(path: Path, dataset: GeneratedDataset) -> None:
     q = dataset.q_matrix
     q_mle = dataset.q_mle
     if q_mle is None:
-        raise ValueError("Q' (q_mle) が None です。")
+        raise ValueError("Q' (q_mle) is None.")
 
     n = len(q)
     if n < 3:
-        raise ValueError("状態数 N は3以上である必要があります。")
+        raise ValueError("State count N must be at least 3.")
 
     for row in q:
         if len(row) != n:
-            raise ValueError("Q の列数が状態数 N と一致しません。")
+            raise ValueError("The number of Q columns must match state count N.")
     for row in q_mle:
         if len(row) != n:
-            raise ValueError("Q' の列数が状態数 N と一致しません。")
+            raise ValueError("The number of Q' columns must match state count N.")
 
     pad_zeros = n - 3
 
@@ -148,22 +148,22 @@ def _write_dataset_csv(path: Path, dataset: GeneratedDataset) -> None:
 
 def _validate_args(args: argparse.Namespace) -> list[float]:
     if args.count <= 0:
-        raise ValueError("--count は1以上で指定してください。")
+        raise ValueError("--count must be >= 1.")
     if args.states <= 0:
-        raise ValueError("--states は1以上で指定してください。")
+        raise ValueError("--states must be >= 1.")
     if args.states < 3:
-        raise ValueError("--states は3以上で指定してください。")
+        raise ValueError("--states must be >= 3.")
     if args.min_n <= 0 or args.max_n <= 0:
-        raise ValueError("--min-n / --max-n は1以上で指定してください。")
+        raise ValueError("--min-n and --max-n must be >= 1.")
     if args.min_n > args.max_n:
-        raise ValueError("--min-n は --max-n 以下で指定してください。")
+        raise ValueError("--min-n must be <= --max-n.")
     if args.workers is not None and args.workers <= 0:
-        raise ValueError("--workers は1以上で指定してください。")
+        raise ValueError("--workers must be >= 1.")
 
     init_r = _parse_init_r(args.init_r)
     expected_len = args.states - 1
     if len(init_r) != expected_len:
-        raise ValueError(f"--init-r の要素数は states-1={expected_len} に一致させてください。")
+        raise ValueError(f"--init-r must contain states-1={expected_len} values.")
     return init_r
 
 
