@@ -23,7 +23,7 @@ python scripts/data_generation/entrypoint_gen_with_MLE.py \
   --out-dir ./data/test_1k \
   --states 4 \
   --lifespan 100.0 \
-  --min-n 5000 \
+  --min-n 500 \
   --max-n 5000 \
   --base-seed 20250924 \
   --init-r "-0.5,-1,-1.5"
@@ -39,7 +39,7 @@ python scripts/data_generation/entrypoint_gen_with_MLE.py \
   --out-dir ./data/train_200k \
   --states 4 \
   --lifespan 100.0 \
-  --min-n 5000 \
+  --min-n 500 \
   --max-n 5000 \
   --base-seed 20250924 \
   --init-r "-0.5,-1,-1.5" \
