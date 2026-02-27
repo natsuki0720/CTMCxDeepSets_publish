@@ -1,0 +1,30 @@
+{
+  "data_dir": "/mnt/ssd/datas/discrete_train_with_mle",
+  "n": 159635,
+  "out_dir": "out",
+  "no_auto_run_dir": false,
+  "run_name": null,
+  "recursive": false,
+  "val_ratio": 0.06035,
+  "seed": 42,
+  "min_lambda": 0.01,
+  "max_lambda": 1,
+  "no_structure_check": false,
+  "no_naninf_check": false,
+  "epochs": 1000,
+  "batch_size": 128,
+  "lr": 0.001,
+  "patience": 10,
+  "num_workers": 48,
+  "state_index_base": "auto",
+  "device": "cuda",
+  "resolved_run_dir": "out/run_20260220_135222",
+  "resolved_state_index_base": "one",
+  "screening_config": {
+    "min_lambda": 0.01,
+    "max_lambda": 1.0,
+    "check_nan_inf": true,
+    "require_structure": true,
+    "max_abs_diag_diff": 1e-08
+  }
+}
