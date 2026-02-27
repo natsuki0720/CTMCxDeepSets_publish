@@ -73,8 +73,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--val-ratio", type=float, default=0.1, help="validation比率")
     parser.add_argument("--seed", type=int, default=42, help="抽出・分割シード")
 
-    parser.add_argument("--min-lambda", type=float, default=1e-8, help="スクリーニング下限")
-    parser.add_argument("--max-lambda", type=float, default=1e4, help="スクリーニング上限")
+    parser.add_argument("--min-lambda", type=float, default=1e-2, help="スクリーニング下限")
+    parser.add_argument("--max-lambda", type=float, default=1, help="スクリーニング上限")
     parser.add_argument("--no-structure-check", action="store_true", help="構造チェックを無効化")
     parser.add_argument("--no-naninf-check", action="store_true", help="NaN/Infチェックを無効化")
 
