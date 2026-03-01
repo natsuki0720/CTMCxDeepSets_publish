@@ -4,18 +4,73 @@ This repository covers the full workflow from CTMC synthetic data generation (tr
 
 ## Setup
 
+The original `environment.yml` was a Linux-exported, OS-specific snapshot, so the environment definitions were reorganized for cross-platform setup.
+
+### Linux + NVIDIA GPU
+
+```bash
+conda env create -f environment.linux.gpu.yml
+conda activate ctmc
+```
+
+### Linux CPU-only
+
+```bash
+conda env create -f environment.base.yml
+conda activate ctmc
+```
+
+### Windows + NVIDIA GPU
+
+```bash
+conda env create -f environment.windows.gpu.yml
+conda activate ctmc
+```
+
+### macOS / Windows CPU-only
+
+```bash
+conda env create -f environment.base.yml
+conda activate ctmc
+```
+
+### Backward compatibility with existing command
+
+`environment.yml` is kept as a compatibility alias and creates the same CPU-oriented environment as `environment.base.yml`.
+
 ```bash
 conda env create -f environment.yml
 conda activate ctmc
+```
+
+If needed, install Playwright browser binaries after environment setup.
+
+```bash
+python -m playwright install
 ```
 
 ---
 
 ## Quick Start
 
-### 1) Generate ~1,000 datasets for testing
+### 1) Check `entrypoint_gen_with_MLE.py` options
 
-Use `scripts/data_generation/entrypoint_gen_with_MLE.py` to generate a lightweight dataset for smoke tests and pipeline validation.
+`scripts/data_generation/entrypoint_gen_with_MLE.py` generates multiple CTMC datasets and saves them as sequential CSV files such as `dataset_0000.csv`. Key arguments are listed below.
+
+- `--count`: Number of CSV files to generate (>= 1)
+- `--out-dir`: Output directory
+- `--states`: Number of states `N` (>= 3)
+- `--lifespan`: Upper bound of transition time
+- `--min-n`, `--max-n`: Sample-size range for each dataset (`min-n <= max-n`)
+- `--base-seed`: Random seed
+- `--init-r`: Initial value for MLE. **Specify exactly `states-1` values in comma-separated format** (for `states=4`, provide 3 values)
+- `--run-parallel`, `--workers`: Parallel generation options
+
+Because `--init-r` values often start with `-`, use the `=` form such as `--init-r=-0.5,-1,-1.5` to avoid shell parsing issues.
+
+Also, for multi-line shell commands, do not add trailing spaces after a line-continuation backslash `\` (trailing spaces break continuation).
+
+### 2) Generate about 1,000 datasets for testing
 
 ```bash
 python scripts/data_generation/entrypoint_gen_with_MLE.py \
@@ -26,12 +81,12 @@ python scripts/data_generation/entrypoint_gen_with_MLE.py \
   --min-n 500 \
   --max-n 5000 \
   --base-seed 20250924 \
-  --init-r "-0.5,-1,-1.5"
+  --init-r=-0.5,-1,-1.5 \
+  --run-parallel \
+  --workers 8
 ```
 
-### 2) Generate ~200,000 datasets for training
-
-Use the same entrypoint to generate large-scale training data (parallel execution is recommended).
+### 3) Generate about 200,000 datasets for training (parallel)
 
 ```bash
 python scripts/data_generation/entrypoint_gen_with_MLE.py \
@@ -42,14 +97,14 @@ python scripts/data_generation/entrypoint_gen_with_MLE.py \
   --min-n 500 \
   --max-n 5000 \
   --base-seed 20250924 \
-  --init-r "-0.5,-1,-1.5" \
+  --init-r=-0.5,-1,-1.5 \
   --run-parallel \
   --workers 8
 ```
 
-### 3) Run the training entrypoint
+### 4) Run the training entry point
 
-During training, the script randomly samples `--n` datasets after screening.
+During training, `--n` samples are randomly drawn after data screening.
 
 ```bash
 python scripts/train_entrypoint.py \
@@ -66,11 +121,11 @@ python scripts/train_entrypoint.py \
   --state-index-base auto
 ```
 
-> Adjust `--n` based on your hardware and execution time budget.
+> Adjust `--n` based on your available compute resources and runtime budget.
 
 ---
 
-## Run evaluation in Notebook
+## Run Evaluation in Notebook
 
 You can evaluate a pretrained model with `notebook/pretrained_model_eval.ipynb`.
 
@@ -83,3 +138,12 @@ You can evaluate a pretrained model with `notebook/pretrained_model_eval.ipynb`.
    - Evaluation dataset directory
    - Model weights file (for example, `out/run_*/weights/best_model.pt`)
 4. Run cells from top to bottom and review metrics/plots.
+
+---
+
+## Troubleshooting
+
+- `EnvironmentNameNotFound: Could not find conda environment: ctmc`
+  - Environment creation has not completed successfully. Run one of the setup commands (`environment.base.yml`, `environment.linux.gpu.yml`, or `environment.windows.gpu.yml`) first.
+- Using a GPU environment file (`environment.linux.gpu.yml` or `environment.windows.gpu.yml`) on a machine without a CUDA-capable NVIDIA setup can fail during dependency resolution or runtime.
+- On macOS, use `environment.base.yml` (CPU-only).

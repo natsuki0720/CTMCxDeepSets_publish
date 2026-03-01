@@ -1,4 +1,0 @@
-num_categories: 4
-embedding_dim: 64
-output_dim: 3
-input_is_one_based: true

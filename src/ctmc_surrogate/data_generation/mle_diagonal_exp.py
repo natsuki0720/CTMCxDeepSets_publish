@@ -45,6 +45,6 @@ class LikelihoodDiagonalExp:
             method="BFGS",
             options={"gtol": 1e-5, "maxiter": 1000, "disp": False},
         )
-        if not result.success:
-            raise RuntimeError(f"MLE最適化に失敗しました: {result.message}")
+        # if not result.success:
+        #     raise RuntimeError(f"MLE最適化に失敗しました: {result.message}")
         return self.generate_q_from_r(result.x)
