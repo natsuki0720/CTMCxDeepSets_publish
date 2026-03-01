@@ -53,24 +53,24 @@ python -m playwright install
 
 ## Quick Start
 
-### 1) `entrypoint_gen_with_MLE.py` の仕様確認
+### 1) Check `entrypoint_gen_with_MLE.py` options
 
-`scripts/data_generation/entrypoint_gen_with_MLE.py` は、CTMC データセットを複数生成して `dataset_0000.csv` のような連番 CSV として保存します。主要引数の仕様は以下です。
+`scripts/data_generation/entrypoint_gen_with_MLE.py` generates multiple CTMC datasets and saves them as sequential CSV files such as `dataset_0000.csv`. Key arguments are listed below.
 
-- `--count` : 生成する CSV ファイル数（1 以上）
-- `--out-dir` : 出力先ディレクトリ
-- `--states` : 状態数 `N`（3 以上）
-- `--lifespan` : 遷移時間上限
-- `--min-n`, `--max-n` : 各データセットのサンプル数レンジ（`min-n <= max-n`）
-- `--base-seed` : 乱数シード
-- `--init-r` : MLE 初期値。**カンマ区切りで `states-1` 個**指定（`states=4` なら 3 要素）
-- `--run-parallel`, `--workers` : 並列生成オプション
+- `--count`: Number of CSV files to generate (>= 1)
+- `--out-dir`: Output directory
+- `--states`: Number of states `N` (>= 3)
+- `--lifespan`: Upper bound of transition time
+- `--min-n`, `--max-n`: Sample-size range for each dataset (`min-n <= max-n`)
+- `--base-seed`: Random seed
+- `--init-r`: Initial value for MLE. **Specify exactly `states-1` values in comma-separated format** (for `states=4`, provide 3 values)
+- `--run-parallel`, `--workers`: Parallel generation options
 
-`--init-r` は値先頭が `-` になるため、`--init-r=-0.5,-1,-1.5` のように `=` 形式で渡すとシェル解釈の揺れを避けやすく安全です。
+Because `--init-r` values often start with `-`, use the `=` form such as `--init-r=-0.5,-1,-1.5` to avoid shell parsing issues.
 
-また、複数行コマンドでは行末バックスラッシュ `\` の後ろに空白を入れないでください（`\` の後ろに空白があると改行継続が壊れます）。
+Also, for multi-line shell commands, do not add trailing spaces after a line-continuation backslash `\` (trailing spaces break continuation).
 
-### 2) テスト用に約 1,000 データセットを生成
+### 2) Generate about 1,000 datasets for testing
 
 ```bash
 python scripts/data_generation/entrypoint_gen_with_MLE.py \
@@ -84,7 +84,7 @@ python scripts/data_generation/entrypoint_gen_with_MLE.py \
   --init-r=-0.5,-1,-1.5
 ```
 
-### 3) 学習用に約 200,000 データセットを生成（並列）
+### 3) Generate about 200,000 datasets for training (parallel)
 
 ```bash
 python scripts/data_generation/entrypoint_gen_with_MLE.py \
@@ -100,9 +100,9 @@ python scripts/data_generation/entrypoint_gen_with_MLE.py \
   --workers 8
 ```
 
-### 4) 学習エントリポイントを実行
+### 4) Run the training entry point
 
-学習時は、スクリーニング後のデータから `--n` 件がランダムに抽出されます。
+During training, `--n` samples are randomly drawn after data screening.
 
 ```bash
 python scripts/train_entrypoint.py \
@@ -119,11 +119,11 @@ python scripts/train_entrypoint.py \
   --state-index-base auto
 ```
 
-> `--n` は計算資源と実行時間に合わせて調整してください。
+> Adjust `--n` based on your available compute resources and runtime budget.
 
 ---
 
-## Run evaluation in Notebook
+## Run Evaluation in Notebook
 
 You can evaluate a pretrained model with `notebook/pretrained_model_eval.ipynb`.
 
