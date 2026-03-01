@@ -81,7 +81,9 @@ python scripts/data_generation/entrypoint_gen_with_MLE.py \
   --min-n 500 \
   --max-n 5000 \
   --base-seed 20250924 \
-  --init-r=-0.5,-1,-1.5
+  --init-r=-0.5,-1,-1.5 \
+  --run-parallel \
+  --workers 8
 ```
 
 ### 3) Generate about 200,000 datasets for training (parallel)
