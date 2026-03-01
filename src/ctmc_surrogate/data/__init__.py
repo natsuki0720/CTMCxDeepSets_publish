@@ -1,4 +1,4 @@
-"""データセットとバッチ化処理を提供するモジュール。"""
+"""Module providing datasets and batching utilities."""
 
 from .collate import ctmc_collate_fn
 from .dataset_csv_loader import ParsedCTMCDataset, as_filewise, as_samplewise, load_dir, parse_ctmc_csv, parse_ctmc_csv_header

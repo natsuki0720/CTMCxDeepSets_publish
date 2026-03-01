@@ -1,4 +1,4 @@
-"""CTMCサロゲート推定で共通利用する定数。"""
+"""Shared constants for CTMC surrogate estimation."""
 
 DEFAULT_MIN_POSITIVE: float = 1e-8
 

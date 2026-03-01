@@ -1,4 +1,4 @@
-"""学習関連モジュール。"""
+"""Training-related modules."""
 
 from .train_loop import CustomLoss, EarlyStoppingConfig, TrainLoopConfig, TrainResult, fit, save_run_artifacts
 

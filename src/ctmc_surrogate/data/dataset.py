@@ -1,4 +1,4 @@
-"""CTMCサロゲート学習用データセット定義。"""
+"""Dataset definitions for CTMC surrogate training."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from torch.utils.data import Dataset
 
 @dataclass(frozen=True)
 class CTMCSample:
-    """1サンプル分の状態遷移系列と教師信号を保持する。"""
+    """Hold one sample of state-transition sequence and supervision target."""
 
     state: Tensor
     delta_t: Tensor
@@ -20,7 +20,7 @@ class CTMCSample:
 
 
 class CTMCSurrogateDataset(Dataset[CTMCSample]):
-    """可変長系列入力を扱うCTMCサロゲート推定用データセット。"""
+    """Dataset for CTMC surrogate estimation with variable-length sequence inputs."""
 
     def __init__(
         self,
@@ -30,33 +30,33 @@ class CTMCSurrogateDataset(Dataset[CTMCSample]):
     ) -> None:
         if not (len(state_list) == len(delta_t_list) == len(target_list)):
             raise ValueError(
-                "入力と教師ラベルの件数が一致しません。"
+                "Input and target label counts do not match."
                 f" state={len(state_list)}, delta_t={len(delta_t_list)}, target={len(target_list)}"
             )
         if len(state_list) == 0:
-            raise ValueError("空データセットは許可されません。")
+            raise ValueError("Empty datasets are not allowed.")
 
         self._samples: list[CTMCSample] = []
         expected_target_dim: int | None = None
 
         for i, (state, delta_t, target) in enumerate(zip(state_list, delta_t_list, target_list)):
             if state.ndim != 2 or state.shape[0] != 2:
-                raise ValueError(f"state[{i}] は shape (2, Li) である必要があります。")
+                raise ValueError(f"state[{i}] must have shape (2, Li).")
             if delta_t.ndim != 1:
-                raise ValueError(f"delta_t[{i}] は shape (Li,) の1次元テンソルである必要があります。")
+                raise ValueError(f"delta_t[{i}] must be a 1D tensor with shape (Li,).")
             if target.ndim != 1:
-                raise ValueError(f"target[{i}] は shape (output_dim,) の1次元テンソルである必要があります。")
+                raise ValueError(f"target[{i}] must be a 1D tensor with shape (output_dim,).")
 
             seq_len = int(state.shape[1])
             if seq_len < 1:
-                raise ValueError(f"state[{i}] の系列長 Li は 1 以上である必要があります。")
+                raise ValueError(f"state[{i}] sequence length Li must be at least 1.")
             if int(delta_t.shape[0]) != seq_len:
-                raise ValueError(f"state[{i}] と delta_t[{i}] の系列長が一致していません。")
+                raise ValueError(f"state[{i}] and delta_t[{i}] have mismatched sequence lengths.")
 
             if expected_target_dim is None:
                 expected_target_dim = int(target.shape[0])
             elif expected_target_dim != int(target.shape[0]):
-                raise ValueError("全サンプルで target の次元を一致させてください。")
+                raise ValueError("Please ensure target dimensions are consistent across all samples.")
 
             self._samples.append(
                 CTMCSample(
@@ -70,7 +70,7 @@ class CTMCSurrogateDataset(Dataset[CTMCSample]):
 
     @property
     def target_dim(self) -> int:
-        """教師信号次元を返す。"""
+        """Return the supervision target dimension."""
         return self._target_dim
 
     def __len__(self) -> int:

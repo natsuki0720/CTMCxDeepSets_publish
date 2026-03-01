@@ -11,7 +11,7 @@ from .dataset_csv_loader import ParsedCTMCDataset
 
 @dataclass
 class ScreeningConfig:
-    """Q' の異常値スクリーニング設定。"""
+    """Outlier screening configuration for Q'."""
 
     min_lambda: float = 1e-8
     max_lambda: float = 1e6
@@ -22,7 +22,7 @@ class ScreeningConfig:
 
 @dataclass
 class ScreeningResult:
-    """スクリーニング結果（保持・除外データセットとレポート）。"""
+    """Screening results (kept/removed datasets and report)."""
 
     kept: list[ParsedCTMCDataset] = field(default_factory=list)
     dropped: list[ParsedCTMCDataset] = field(default_factory=list)
@@ -30,10 +30,10 @@ class ScreeningResult:
 
 
 def extract_lambdas_from_Q(Q: np.ndarray) -> np.ndarray:
-    """pure birth 直列型の Q から λ_i=Q[i, i+1] を抽出する。"""
+    """Extract λ_i=Q[i, i+1] from serial pure-birth Q."""
 
     if Q.ndim != 2 or Q.shape[0] != Q.shape[1]:
-        raise ValueError(f"Q は正方行列である必要があります: shape={Q.shape}")
+        raise ValueError(f"Q must be a square matrix: shape={Q.shape}")
 
     n = Q.shape[0]
     if n <= 1:
@@ -42,19 +42,19 @@ def extract_lambdas_from_Q(Q: np.ndarray) -> np.ndarray:
 
 
 def validate_Q_structure(Q: np.ndarray, tol: float) -> None | str:
-    """pure birth 構造の整合性を検査し、問題理由を返す。"""
+    """Check pure-birth structural consistency and return reasons when invalid."""
 
     if Q.ndim != 2 or Q.shape[0] != Q.shape[1]:
-        return f"Q が正方行列ではありません: shape={Q.shape}"
+        return f"Q is not a square matrix: shape={Q.shape}"
 
     n = Q.shape[0]
     if n == 0:
-        return "Q が空行列です"
+        return "Q is an empty matrix"
 
-    # 最終行は吸収状態のためほぼ 0 を期待する。
+    # The last row is expected to be near zero because it is the absorbing state.
     last_row_abs_max = float(np.max(np.abs(Q[n - 1, :])))
     if last_row_abs_max >= tol:
-        return f"最終行が 0 に近くありません: max_abs={last_row_abs_max:.3e}, tol={tol:.3e}"
+        return f"The last row is not close to 0: max_abs={last_row_abs_max:.3e}, tol={tol:.3e}"
 
     for i in range(n - 1):
         lam = float(Q[i, i + 1])
@@ -62,11 +62,11 @@ def validate_Q_structure(Q: np.ndarray, tol: float) -> None | str:
         diff = abs(diag + lam)
         if diff >= tol:
             return (
-                f"対角と上隣接要素が不整合です: i={i}, Qii={diag:.6e}, "
+                f"Diagonal and upper-adjacent elements are inconsistent: i={i}, Qii={diag:.6e}, "
                 f"Q(i,i+1)={lam:.6e}, |Qii+Q(i,i+1)|={diff:.3e}, tol={tol:.3e}"
             )
         if lam < 0:
-            return f"上隣接要素が負です: i={i}, lambda={lam:.6e}"
+            return f"Upper-adjacent element is negative: i={i}, lambda={lam:.6e}"
 
     for i in range(n):
         for j in range(n):
@@ -75,7 +75,7 @@ def validate_Q_structure(Q: np.ndarray, tol: float) -> None | str:
             v = float(Q[i, j])
             if abs(v) >= tol:
                 return (
-                    f"pure birth 以外の要素が 0 に近くありません: "
+                    f"Elements outside pure-birth structure are not close to 0: "
                     f"index=({i},{j}), value={v:.6e}, tol={tol:.3e}"
                 )
 
@@ -83,7 +83,7 @@ def validate_Q_structure(Q: np.ndarray, tol: float) -> None | str:
 
 
 def has_nan_inf(mat: np.ndarray) -> bool:
-    """行列に NaN/Inf が含まれるかを返す。"""
+    """Return whether a matrix contains NaN/Inf."""
 
     return not np.isfinite(mat).all()
 
@@ -92,7 +92,7 @@ def screen_datasets(
     datasets: list[ParsedCTMCDataset],
     cfg: ScreeningConfig,
 ) -> ScreeningResult:
-    """Q' の異常値を基準にデータセットを保持/除外する。"""
+    """Keep/remove datasets based on Q' outlier criteria."""
 
     result = ScreeningResult()
 
@@ -172,15 +172,15 @@ def screen_datasets(
 
 
 def screen_dir_fast(dir_path: str | Path, recursive: bool, cfg: ScreeningConfig) -> dict[str, Any]:
-    """CSV のヘッダ部のみで高速スクリーニングを実行する。"""
+    """Run fast screening using only CSV headers."""
 
     from .dataset_csv_loader import parse_ctmc_csv_header
 
     base = Path(dir_path)
     if not base.exists():
-        raise FileNotFoundError(f"ディレクトリが存在しません: {base}")
+        raise FileNotFoundError(f"Directory does not exist: {base}")
     if not base.is_dir():
-        raise ValueError(f"指定パスはディレクトリではありません: {base}")
+        raise ValueError(f"Specified path is not a directory: {base}")
 
     iterator = base.rglob("*.csv") if recursive else base.glob("*.csv")
     csv_paths = sorted(

@@ -1,4 +1,4 @@
-"""公開版で利用するモデル定義。"""
+"""Model definitions used in the public release."""
 
 from .deepsets_regressor import DeepSetsVarSetsAttnRegressor, build_model
 
