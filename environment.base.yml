@@ -1,5 +1,3 @@
-# Compatibility alias: the existing command `conda env create -f environment.yml`
-# creates the cross-platform CPU base environment.
 name: ctmc
 channels:
   - pytorch

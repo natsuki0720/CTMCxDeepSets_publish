@@ -4,9 +4,49 @@ This repository covers the full workflow from CTMC synthetic data generation (tr
 
 ## Setup
 
+The original `environment.yml` was a Linux-exported, OS-specific snapshot, so the environment definitions were reorganized for cross-platform setup.
+
+### Linux + NVIDIA GPU
+
+```bash
+conda env create -f environment.linux.gpu.yml
+conda activate ctmc
+```
+
+### Linux CPU-only
+
+```bash
+conda env create -f environment.base.yml
+conda activate ctmc
+```
+
+### Windows + NVIDIA GPU
+
+```bash
+conda env create -f environment.windows.gpu.yml
+conda activate ctmc
+```
+
+### macOS / Windows CPU-only
+
+```bash
+conda env create -f environment.base.yml
+conda activate ctmc
+```
+
+### Backward compatibility with existing command
+
+`environment.yml` is kept as a compatibility alias and creates the same CPU-oriented environment as `environment.base.yml`.
+
 ```bash
 conda env create -f environment.yml
 conda activate ctmc
+```
+
+If needed, install Playwright browser binaries after environment setup.
+
+```bash
+python -m playwright install
 ```
 
 ---
@@ -83,3 +123,12 @@ You can evaluate a pretrained model with `notebook/pretrained_model_eval.ipynb`.
    - Evaluation dataset directory
    - Model weights file (for example, `out/run_*/weights/best_model.pt`)
 4. Run cells from top to bottom and review metrics/plots.
+
+---
+
+## Troubleshooting
+
+- `EnvironmentNameNotFound: Could not find conda environment: ctmc`
+  - Environment creation has not completed successfully. Run one of the setup commands (`environment.base.yml`, `environment.linux.gpu.yml`, or `environment.windows.gpu.yml`) first.
+- Using a GPU environment file (`environment.linux.gpu.yml` or `environment.windows.gpu.yml`) on a machine without a CUDA-capable NVIDIA setup can fail during dependency resolution or runtime.
+- On macOS, use `environment.base.yml` (CPU-only).

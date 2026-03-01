@@ -1,8 +1,7 @@
-# Compatibility alias: the existing command `conda env create -f environment.yml`
-# creates the cross-platform CPU base environment.
 name: ctmc
 channels:
   - pytorch
+  - nvidia
   - conda-forge
   - defaults
 dependencies:
@@ -20,6 +19,7 @@ dependencies:
   - pytorch
   - torchvision
   - torchaudio
+  - pytorch-cuda=12.1
   - pyyaml
   - requests
   - pip:
