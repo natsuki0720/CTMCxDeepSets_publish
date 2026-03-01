@@ -72,6 +72,8 @@ Also, for multi-line shell commands, do not add trailing spaces after a line-con
 
 ### 2) Generate about 1,000 datasets for testing
 
+Linux/macOS (bash/zsh):
+
 ```bash
 python scripts/data_generation/entrypoint_gen_with_MLE.py \
   --count 1000 \
@@ -86,7 +88,15 @@ python scripts/data_generation/entrypoint_gen_with_MLE.py \
   --workers 8
 ```
 
+Windows (PowerShell / Command Prompt, single line):
+
+```powershell
+python scripts/data_generation/entrypoint_gen_with_MLE.py --count 1000 --out-dir .\data\test_1k --states 4 --lifespan 100.0 --min-n 500 --max-n 5000 --base-seed 20250924 --init-r=-0.5,-1,-1.5 --run-parallel --workers 8
+```
+
 ### 3) Generate about 200,000 datasets for training (parallel)
+
+Linux/macOS (bash/zsh):
 
 ```bash
 python scripts/data_generation/entrypoint_gen_with_MLE.py \
@@ -102,9 +112,17 @@ python scripts/data_generation/entrypoint_gen_with_MLE.py \
   --workers 8
 ```
 
+Windows (PowerShell / Command Prompt, single line):
+
+```powershell
+python scripts/data_generation/entrypoint_gen_with_MLE.py --count 200000 --out-dir .\data\train_200k --states 4 --lifespan 100.0 --min-n 500 --max-n 5000 --base-seed 20250924 --init-r=-0.5,-1,-1.5 --run-parallel --workers 8
+```
+
 ### 4) Run the training entry point
 
 During training, `--n` samples are randomly drawn after data screening.
+
+Linux/macOS (bash/zsh):
 
 ```bash
 python scripts/train_entrypoint.py \
@@ -119,6 +137,12 @@ python scripts/train_entrypoint.py \
   --patience 10 \
   --num-workers 8 \
   --state-index-base auto
+```
+
+Windows (PowerShell / Command Prompt, single line):
+
+```powershell
+python scripts/train_entrypoint.py --data-dir .\data\train_200k --n 50000 --out-dir .\out --recursive --val-ratio 0.1 --epochs 1000 --batch-size 128 --lr 1e-3 --patience 10 --num-workers 8 --state-index-base auto
 ```
 
 > Adjust `--n` based on your available compute resources and runtime budget.
