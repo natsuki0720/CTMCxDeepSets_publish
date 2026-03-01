@@ -1,4 +1,4 @@
-"""discrete DelT生成モジュール。"""
+"""Module for discrete DelT generation."""
 
 from __future__ import annotations
 
@@ -9,13 +9,13 @@ from .config import DeltaTSamplingConfig
 
 
 class DirichletDeltaT:
-    """Dirichlet混合により離散候補点からDelTをサンプリングする。"""
+    """Sample DelT from discrete candidate points using a Dirichlet mixture."""
 
     def __init__(self, config: DeltaTSamplingConfig, rng: Generator) -> None:
         if config.k_min < 1 or config.k_max < config.k_min:
-            raise ValueError("k_min, k_max の設定が不正です。")
+            raise ValueError("Invalid k_min or k_max setting.")
         if config.candidate_high <= config.candidate_low:
-            raise ValueError("candidate_high は candidate_low より大きくする必要があります。")
+            raise ValueError("candidate_high must be greater than candidate_low.")
 
         self._config = config
         self._rng = rng
@@ -26,16 +26,16 @@ class DirichletDeltaT:
 
     @property
     def candidates(self) -> np.ndarray:
-        """候補時刻を返す。"""
+        """Return candidate times."""
         return self._candidates.copy()
 
     @property
     def weights(self) -> np.ndarray:
-        """候補点の出現確率を返す。"""
+        """Return occurrence probabilities of candidate points."""
         return self._weights.copy()
 
     def sample(self) -> float:
-        """1つのDelTをサンプリングする。"""
+        """Sample a single DelT value."""
         idx = int(self._rng.choice(self._num_candidates, p=self._weights))
         return round(float(self._candidates[idx]), self._config.round_digits)
 

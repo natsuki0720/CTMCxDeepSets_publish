@@ -1,1 +1,1 @@
-"""データ生成用スクリプト群。"""
+"""Scripts for data generation."""

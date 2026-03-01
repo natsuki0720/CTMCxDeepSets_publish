@@ -1,4 +1,4 @@
-"""CTMCサロゲートモデル向けの学習ループ実装。"""
+"""Training loop implementation for CTMC surrogate models."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 
 @dataclass(frozen=True)
 class EarlyStoppingConfig:
-    """早期終了判定の設定。"""
+    """Configuration for early stopping."""
 
     patience: int = 10
     min_delta: float = 0.0
@@ -23,7 +23,7 @@ class EarlyStoppingConfig:
 
 @dataclass(frozen=True)
 class TrainLoopConfig:
-    """学習ループ設定。"""
+    """Training-loop configuration."""
 
     epochs: int = 100
     learning_rate: float = 1e-3
@@ -34,7 +34,7 @@ class TrainLoopConfig:
 
 @dataclass(frozen=True)
 class TrainResult:
-    """学習結果の要約。"""
+    """Training result summary."""
 
     best_epoch: int
     best_val_loss: float
@@ -44,14 +44,14 @@ class TrainResult:
 
 
 class CustomLoss(nn.Module):
-    """逆数変換後のMAEを最小化する損失関数。"""
+    """Loss function that minimizes MAE after reciprocal transform."""
 
     def __init__(self, epsilon: float = 1e-12) -> None:
         super().__init__()
         self.epsilon = float(epsilon)
 
     def forward(self, outputs: Tensor, targets: Tensor) -> Tensor:
-        """ゼロ割り防止の微小値を加えたうえで逆数MAEを返す。"""
+        """Return reciprocal MAE with a small epsilon to prevent division by zero."""
         y_pred_inverse = 1.0 / (outputs + self.epsilon)
         y_true_inverse = 1.0 / (targets + self.epsilon)
         return torch.abs(y_pred_inverse - y_true_inverse).mean()
@@ -109,7 +109,7 @@ def _run_epoch(
         total_samples += batch_size
 
     if total_samples == 0:
-        raise ValueError("DataLoader からサンプルが供給されませんでした。")
+        raise ValueError("No samples were provided from the DataLoader.")
 
     return total_loss / total_samples
 
@@ -121,11 +121,11 @@ def fit(
     config: TrainLoopConfig,
     loss_fn: nn.Module | None = None,
 ) -> TrainResult:
-    """学習と検証を実行し、早期終了付きで最良重みを復元して返す。"""
+    """Run training and validation, then restore and return best weights with early stopping."""
     if int(config.epochs) < 1:
-        raise ValueError("epochs は1以上である必要があります。")
+        raise ValueError("epochs must be at least 1.")
     if int(config.early_stopping.patience) < 1:
-        raise ValueError("early_stopping.patience は1以上である必要があります。")
+        raise ValueError("early_stopping.patience must be at least 1.")
 
     device = torch.device(config.device)
     model.to(device)
@@ -162,7 +162,7 @@ def fit(
             break
 
     if best_state_dict is None:
-        raise RuntimeError("学習中に有効な最良モデルが記録されませんでした。")
+        raise RuntimeError("No valid best model was recorded during training.")
 
     model.load_state_dict(best_state_dict)
     model.to(device)
@@ -183,14 +183,14 @@ def save_run_artifacts(
     model_config: dict[str, Any],
     metrics: TrainResult,
 ) -> None:
-    """学習成果物を run_dir に保存する。
+    """Save training artifacts to run_dir.
 
-    保存先仕様:
-      - モデル設定: ``run_dir/model_config.yaml``
-      - 学習指標: ``run_dir/metrics.json``
-      - モデル重み: ``run_dir/weights/best_model.pt``
+    Output paths:
+      - Model config: ``run_dir/model_config.yaml``
+      - Training metrics: ``run_dir/metrics.json``
+      - Model weights: ``run_dir/weights/best_model.pt``
 
-    ``weights`` ディレクトリは存在しない場合に自動作成する。
+    The ``weights`` directory is created automatically if it does not exist.
     """
     run_path = Path(run_dir)
     run_path.mkdir(parents=True, exist_ok=True)
@@ -209,7 +209,7 @@ def save_run_artifacts(
 
 
 def _write_yaml_like_dict(path: Path, value: dict[str, Any]) -> None:
-    """依存追加を避けるため、最小限のYAML互換フォーマットで辞書を保存する。"""
+    """Save a dictionary in a minimal YAML-compatible format to avoid adding dependencies."""
     lines = []
     for key, val in value.items():
         if isinstance(val, bool):

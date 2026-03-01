@@ -1,4 +1,4 @@
-"""可変長系列入力をバッチ化する collate_fn。"""
+"""collate_fn for batching variable-length sequence inputs."""
 
 from __future__ import annotations
 
@@ -11,9 +11,9 @@ from .dataset import CTMCSample
 
 
 def ctmc_collate_fn(samples: Sequence[CTMCSample]) -> tuple[Tensor, Tensor, Tensor, Tensor]:
-    """可変長系列をゼロパディングし、モデル入力形式へ変換する。"""
+    """Zero-pad variable-length sequences and convert them into model input format."""
     if len(samples) == 0:
-        raise ValueError("空バッチは処理できません。")
+        raise ValueError("Empty batches cannot be processed.")
 
     target_dim = int(samples[0].target.shape[0])
     lengths = torch.tensor([int(s.state.shape[1]) for s in samples], dtype=torch.long)
@@ -26,19 +26,19 @@ def ctmc_collate_fn(samples: Sequence[CTMCSample]) -> tuple[Tensor, Tensor, Tens
 
     for i, sample in enumerate(samples):
         if sample.state.ndim != 2 or sample.state.shape[0] != 2:
-            raise ValueError(f"samples[{i}].state は shape (2, Li) である必要があります。")
+            raise ValueError(f"samples[{i}].state must have shape (2, Li).")
         if sample.delta_t.ndim != 1:
-            raise ValueError(f"samples[{i}].delta_t は shape (Li,) の1次元テンソルである必要があります。")
+            raise ValueError(f"samples[{i}].delta_t must be a 1D tensor with shape (Li,).")
         if sample.target.ndim != 1:
-            raise ValueError(f"samples[{i}].target は shape (output_dim,) の1次元テンソルである必要があります。")
+            raise ValueError(f"samples[{i}].target must be a 1D tensor with shape (output_dim,).")
 
         li = int(sample.state.shape[1])
         if li < 1:
-            raise ValueError(f"samples[{i}] の系列長 Li は 1 以上である必要があります。")
+            raise ValueError(f"samples[{i}] sequence length Li must be at least 1.")
         if int(sample.delta_t.shape[0]) != li:
-            raise ValueError(f"samples[{i}] の state と delta_t の系列長が一致していません。")
+            raise ValueError(f"samples[{i}] has mismatched sequence lengths between state and delta_t.")
         if int(sample.target.shape[0]) != target_dim:
-            raise ValueError("バッチ内で target 次元が一致していません。")
+            raise ValueError("Target dimensions do not match within the batch.")
 
         state_padded[i, :, :li] = sample.state.to(dtype=torch.long)
         delta_t_padded[i, :li] = sample.delta_t.to(dtype=torch.float32)

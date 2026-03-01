@@ -1,4 +1,4 @@
-"""CTMC遷移確率行列計算モジュール。"""
+"""CTMC transition probability matrix computation module."""
 
 from __future__ import annotations
 
@@ -6,16 +6,16 @@ import numpy as np
 
 
 class CalcProbmatrix:
-    """純Birth過程の解析式でP(Δt)を計算する。"""
+    """Compute P(Δt) using the analytical formula for a pure birth process."""
 
     def __init__(self, eps: float = 1e-12) -> None:
         self._eps = eps
 
     def __call__(self, q_matrix: np.ndarray, delta_t: float) -> np.ndarray:
         if q_matrix.ndim != 2 or q_matrix.shape[0] != q_matrix.shape[1]:
-            raise ValueError("q_matrix は正方行列である必要があります。")
+            raise ValueError("q_matrix must be a square matrix.")
         if delta_t < 0:
-            raise ValueError("delta_t は非負である必要があります。")
+            raise ValueError("delta_t must be non-negative.")
 
         n = q_matrix.shape[0]
         lambdas = -np.diag(q_matrix)[: n - 1]
@@ -26,10 +26,10 @@ class CalcProbmatrix:
 
 
 def transition_row(lambdas: np.ndarray, start_index: int, delta_t: float, eps: float = 1e-12) -> np.ndarray:
-    """純Birth過程の1行分の遷移確率を解析式で返す。"""
+    """Return one-row transition probabilities analytically for a pure birth process."""
     n = lambdas.shape[0] + 1
     if not (0 <= start_index < n):
-        raise ValueError("start_index が状態数の範囲外です。")
+        raise ValueError("start_index is out of range for number of states.")
 
     lambda_ext = np.zeros(n, dtype=np.float64)
     lambda_ext[: n - 1] = lambdas
