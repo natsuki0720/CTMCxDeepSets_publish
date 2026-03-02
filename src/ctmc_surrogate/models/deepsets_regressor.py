@@ -1,4 +1,4 @@
-"""状態遷移系列を入力とするDeepSets系サロゲート回帰モデル。"""
+"""DeepSets-based surrogate regressor for state-transition sequence inputs."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from torch import Tensor, nn
 
 
 class DeepSetsVarSetsAttnRegressor(nn.Module):
-    """(state, delta_t, lengths) から正値の生パラメータを推定する回帰器。"""
+    """Regressor that estimates positive raw parameters from (state, delta_t, lengths)."""
 
     def __init__(
         self,
@@ -58,13 +58,13 @@ class DeepSetsVarSetsAttnRegressor(nn.Module):
         return torch.where(state >= 0, state + 1, torch.zeros_like(state))
 
     def forward(self, state: Tensor, delta_t: Tensor, lengths: Tensor) -> Tensor:
-        """正値制約付きの生パラメータ（raw）のみ返す。"""
+        """Return only raw parameters constrained to positive values."""
         if state.ndim != 3 or state.shape[1] != 2:
-            raise ValueError("state は shape (B, 2, L) である必要があります。")
+            raise ValueError("state must have shape (B, 2, L).")
         if delta_t.ndim != 2:
-            raise ValueError("delta_t は shape (B, L) である必要があります。")
+            raise ValueError("delta_t must have shape (B, L).")
         if lengths.ndim != 1:
-            raise ValueError("lengths は shape (B,) である必要があります。")
+            raise ValueError("lengths must have shape (B,).")
 
         device = state.device
         lengths = lengths.to(device)
@@ -73,13 +73,13 @@ class DeepSetsVarSetsAttnRegressor(nn.Module):
 
         bsz, _, seq_len = state.shape
         if delta_t.shape != (bsz, seq_len):
-            raise ValueError("delta_t の shape は state と整合する (B, L) である必要があります。")
+            raise ValueError("delta_t shape must align with state as (B, L).")
         if lengths.shape[0] != bsz:
-            raise ValueError("lengths のバッチ次元は state と一致する必要があります。")
+            raise ValueError("lengths batch dimension must match state.")
         if torch.any(lengths < 1):
-            raise ValueError("lengths の各要素は 1 以上である必要があります。")
+            raise ValueError("Each element of lengths must be at least 1.")
         if int(lengths.max().item()) > seq_len:
-            raise ValueError("lengths の最大値が state の系列長 L を超えています。")
+            raise ValueError("The maximum value in lengths exceeds state sequence length L.")
 
         norm_idx = self._normalize_indices(state.long())
         pre_emb = self.embedding(norm_idx[:, 0, :])
@@ -121,16 +121,16 @@ class DeepSetsVarSetsAttnRegressor(nn.Module):
         logits = self.out_fc3(h)
         output = F.softplus(logits)
         if __debug__:
-            assert torch.all(output >= 0), "softplus 出力が 0 未満になっています。"
+            assert torch.all(output >= 0), "softplus output is negative."
         return output
 
 
 def build_model(model_config: dict) -> DeepSetsVarSetsAttnRegressor:
-    """設定辞書から新仕様の回帰モデルを構築する。"""
+    """Build the new-spec regressor model from a config dictionary."""
     required = ["num_categories", "embedding_dim", "output_dim"]
     missing = [key for key in required if key not in model_config]
     if missing:
-        raise ValueError(f"model_config に必須キーが不足しています: {missing}")
+        raise ValueError(f"model_config is missing required keys: {missing}")
 
     return DeepSetsVarSetsAttnRegressor(
         num_categories=int(model_config["num_categories"]),

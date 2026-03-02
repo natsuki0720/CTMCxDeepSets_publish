@@ -1,4 +1,4 @@
-"""CTMCデータ生成機能。"""
+"""CTMC data-generation functionality."""
 
 from .config import DatasetGenerationConfig, DeltaTSamplingConfig, MultiDatasetConfig, TransitionRateConfig
 from .delta_t import DirichletDeltaT

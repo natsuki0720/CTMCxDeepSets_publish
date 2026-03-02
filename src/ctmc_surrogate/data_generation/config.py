@@ -1,4 +1,4 @@
-"""CTMCデータ生成の設定定義。"""
+"""Configuration definitions for CTMC data generation."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Sequence
 
 @dataclass(frozen=True)
 class TransitionRateConfig:
-    """推移率行列生成の設定。"""
+    """Configuration for transition-rate matrix generation."""
 
     num_states: int = 4
     lifetime_upper: float = 100.0
@@ -17,7 +17,7 @@ class TransitionRateConfig:
 
 @dataclass(frozen=True)
 class DeltaTSamplingConfig:
-    """離散DelT生成の設定。"""
+    """Configuration for discrete DelT generation."""
 
     k_min: int = 2
     k_max: int = 10
@@ -28,7 +28,7 @@ class DeltaTSamplingConfig:
 
 @dataclass(frozen=True)
 class DatasetGenerationConfig:
-    """1データセット生成の設定。"""
+    """Configuration for generating one dataset."""
 
     num_samples: int = 1000
     transition_rate: TransitionRateConfig = field(default_factory=TransitionRateConfig)
@@ -39,7 +39,7 @@ class DatasetGenerationConfig:
 
 @dataclass(frozen=True)
 class MultiDatasetConfig:
-    """複数データセット生成の設定。"""
+    """Configuration for generating multiple datasets."""
 
     num_datasets: int = 1
     base_seed: int = 42

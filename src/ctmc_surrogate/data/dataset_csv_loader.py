@@ -10,7 +10,7 @@ import numpy as np
 
 @dataclass
 class ParsedCTMCDataset:
-    """CTMC 合成データ 1 ファイル分のパース結果。"""
+    """Parsing result for one CTMC synthetic-data file."""
 
     path: str
     q: np.ndarray
@@ -23,7 +23,7 @@ def _to_float(value: str, path: Path, row_idx: int, col_idx: int) -> float:
         return float(value)
     except ValueError as exc:
         raise ValueError(
-            f"CSV値の float 変換に失敗しました: path={path}, row={row_idx}, col={col_idx}, value={value!r}"
+            f"Failed to convert CSV value to float: path={path}, row={row_idx}, col={col_idx}, value={value!r}"
         ) from exc
 
 
@@ -31,24 +31,24 @@ def _to_int_like(value: str, path: Path, row_idx: int, col_idx: int) -> int:
     x = _to_float(value, path, row_idx, col_idx)
     if not np.isfinite(x):
         raise ValueError(
-            f"有限な整数値ではありません: path={path}, row={row_idx}, col={col_idx}, value={value!r}"
+            f"Value is not a finite integer: path={path}, row={row_idx}, col={col_idx}, value={value!r}"
         )
     xi = int(round(x))
     if not np.isclose(x, xi):
         raise ValueError(
-            f"整数として解釈できません: path={path}, row={row_idx}, col={col_idx}, value={value!r}"
+            f"Value cannot be interpreted as an integer: path={path}, row={row_idx}, col={col_idx}, value={value!r}"
         )
     return xi
 
 
 def parse_ctmc_csv(path: str | Path) -> ParsedCTMCDataset:
-    """1 つの CTMC CSV を読み込み、Q / Q' / samples に分解する。"""
+    """Load one CTMC CSV and split it into Q / Q' / samples."""
 
     csv_path = Path(path)
     if not csv_path.exists():
-        raise FileNotFoundError(f"CSVファイルが存在しません: {csv_path}")
+        raise FileNotFoundError(f"CSV file does not exist: {csv_path}")
     if not csv_path.is_file():
-        raise ValueError(f"指定パスはファイルではありません: {csv_path}")
+        raise ValueError(f"Specified path is not a file: {csv_path}")
 
     rows: list[list[str]] = []
     with csv_path.open("r", encoding="utf-8", newline="") as f:
@@ -59,21 +59,21 @@ def parse_ctmc_csv(path: str | Path) -> ParsedCTMCDataset:
             rows.append(row)
 
     if not rows:
-        raise ValueError(f"CSVが空です: {csv_path}")
+        raise ValueError(f"CSV is empty: {csv_path}")
 
     n = len(rows[0])
     if n <= 0:
-        raise ValueError(f"1行目から列数 N を推定できません: {csv_path}")
+        raise ValueError(f"Cannot infer column count N from the first row: {csv_path}")
 
     for i, row in enumerate(rows):
         if len(row) != n:
             raise ValueError(
-                f"列数が不一致です: path={csv_path}, row={i}, expected_n={n}, actual={len(row)}"
+                f"Column count mismatch: path={csv_path}, row={i}, expected_n={n}, actual={len(row)}"
             )
 
     if len(rows) < 2 * n:
         raise ValueError(
-            f"行数不足です (rows < 2N): path={csv_path}, rows={len(rows)}, N={n}"
+            f"Insufficient number of rows (rows < 2N): path={csv_path}, rows={len(rows)}, N={n}"
         )
 
     q_rows = rows[:n]
@@ -110,34 +110,34 @@ def parse_ctmc_csv(path: str | Path) -> ParsedCTMCDataset:
 
 
 def parse_ctmc_csv_header(path: str | Path) -> tuple[np.ndarray, np.ndarray]:
-    """1 つの CTMC CSV から Q / Q' のみを軽量に読み込む。"""
+    """Lightweight loading of only Q / Q' from one CTMC CSV."""
 
     csv_path = Path(path)
     if not csv_path.exists():
-        raise FileNotFoundError(f"CSVファイルが存在しません: {csv_path}")
+        raise FileNotFoundError(f"CSV file does not exist: {csv_path}")
     if not csv_path.is_file():
-        raise ValueError(f"指定パスはファイルではありません: {csv_path}")
+        raise ValueError(f"Specified path is not a file: {csv_path}")
 
     with csv_path.open("r", encoding="utf-8", newline="") as f:
         reader = csv.reader(f)
         try:
             first_row = next(reader)
         except StopIteration as exc:
-            raise ValueError(f"CSVが空です: {csv_path}") from exc
+            raise ValueError(f"CSV is empty: {csv_path}") from exc
 
         if not first_row:
-            raise ValueError(f"1行目から列数 N を推定できません: {csv_path}")
+            raise ValueError(f"Cannot infer column count N from the first row: {csv_path}")
 
         n = len(first_row)
         if n <= 0:
-            raise ValueError(f"1行目から列数 N を推定できません: {csv_path}")
+            raise ValueError(f"Cannot infer column count N from the first row: {csv_path}")
 
         q = np.empty((n, n), dtype=np.float64)
         q_mle = np.empty((n, n), dtype=np.float64)
 
         if len(first_row) != n:
             raise ValueError(
-                f"列数が不一致です: path={csv_path}, row=0, expected_n={n}, actual={len(first_row)}"
+                f"Column count mismatch: path={csv_path}, row=0, expected_n={n}, actual={len(first_row)}"
             )
         for c in range(n):
             q[0, c] = _to_float(first_row[c], csv_path, 0, c)
@@ -147,16 +147,16 @@ def parse_ctmc_csv_header(path: str | Path) -> tuple[np.ndarray, np.ndarray]:
                 row = next(reader)
             except StopIteration as exc:
                 raise ValueError(
-                    f"行数不足です (rows < 2N): path={csv_path}, rows={r}, N={n}"
+                    f"Insufficient number of rows (rows < 2N): path={csv_path}, rows={r}, N={n}"
                 ) from exc
 
             if not row:
                 raise ValueError(
-                    f"列数が不一致です: path={csv_path}, row={r}, expected_n={n}, actual=0"
+                    f"Column count mismatch: path={csv_path}, row={r}, expected_n={n}, actual=0"
                 )
             if len(row) != n:
                 raise ValueError(
-                    f"列数が不一致です: path={csv_path}, row={r}, expected_n={n}, actual={len(row)}"
+                    f"Column count mismatch: path={csv_path}, row={r}, expected_n={n}, actual={len(row)}"
                 )
 
             if r < n:
@@ -171,13 +171,13 @@ def parse_ctmc_csv_header(path: str | Path) -> tuple[np.ndarray, np.ndarray]:
 
 
 def load_dir(dir_path: str | Path, recursive: bool = False) -> list[ParsedCTMCDataset]:
-    """ディレクトリ配下の CSV を探索し、全件をパースする。"""
+    """Search for CSVs under a directory and parse all files."""
 
     base = Path(dir_path)
     if not base.exists():
-        raise FileNotFoundError(f"ディレクトリが存在しません: {base}")
+        raise FileNotFoundError(f"Directory does not exist: {base}")
     if not base.is_dir():
-        raise ValueError(f"指定パスはディレクトリではありません: {base}")
+        raise ValueError(f"Specified path is not a directory: {base}")
 
     iterator = base.rglob("*.csv") if recursive else base.glob("*.csv")
     csv_paths = sorted(
@@ -192,7 +192,7 @@ def load_dir(dir_path: str | Path, recursive: bool = False) -> list[ParsedCTMCDa
 def as_filewise(
     datasets: list[ParsedCTMCDataset],
 ) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray]]:
-    """ファイル単位で Q / Q' / samples を取り出す。"""
+    """Retrieve Q / Q' / samples on a per-file basis."""
 
     q_list = [d.q for d in datasets]
     q_mle_list = [d.q_mle for d in datasets]
@@ -204,7 +204,7 @@ def as_samplewise(
     datasets: list[ParsedCTMCDataset],
     keep_source_index: bool = True,
 ) -> dict[str, Any]:
-    """全ファイルの samples を縦結合し、学習向けの形で返す。"""
+    """Vertically concatenate samples from all files and return training-ready tensors."""
 
     if not datasets:
         result: dict[str, Any] = {"samples": np.empty((0, 3), dtype=np.float64)}
@@ -221,7 +221,7 @@ def as_samplewise(
         m = d.samples.shape[0]
         if d.samples.ndim != 2 or d.samples.shape[1] != 3:
             raise ValueError(
-                f"samples の形状が不正です: path={d.path}, expected=(M,3), actual={d.samples.shape}"
+                f"Invalid samples shape: path={d.path}, expected=(M,3), actual={d.samples.shape}"
             )
         samples_chunks.append(d.samples)
         if keep_source_index:
@@ -244,9 +244,9 @@ def as_samplewise(
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="CTMC CSV ローダ簡易確認")
-    parser.add_argument("dir_path", type=str, help="CSV を含むディレクトリ")
-    parser.add_argument("--recursive", action="store_true", help="再帰探索を有効化")
+    parser = argparse.ArgumentParser(description="Quick check for CTMC CSV loader")
+    parser.add_argument("dir_path", type=str, help="Directory containing CSV files")
+    parser.add_argument("--recursive", action="store_true", help="Enable recursive search")
     args = parser.parse_args()
 
     datasets = load_dir(args.dir_path, recursive=args.recursive)

@@ -1,4 +1,4 @@
-"""推移率行列を生成するモジュール。"""
+"""Module for generating transition-rate matrices."""
 
 from __future__ import annotations
 
@@ -9,17 +9,17 @@ from .config import TransitionRateConfig
 
 
 class DiagonalTransitionRateMatrixGenerator:
-    """劣化方向のみ遷移する上三角隣接CTMCの推移率行列を生成する。"""
+    """Generate transition-rate matrices for upper-triangular adjacent CTMCs with degradation-only transitions."""
 
     def __init__(self, config: TransitionRateConfig) -> None:
         if config.num_states < 2:
-            raise ValueError("num_states は2以上である必要があります。")
+            raise ValueError("num_states must be at least 2.")
         if config.lifetime_upper <= 1.0:
-            raise ValueError("lifetime_upper は1より大きい必要があります。")
+            raise ValueError("lifetime_upper must be greater than 1.")
         self._config = config
 
     def generate(self, rng: Generator) -> np.ndarray:
-        """推移率行列Qを生成する。"""
+        """Generate the transition-rate matrix Q."""
         n = self._config.num_states
         q = np.zeros((n, n), dtype=np.float64)
 

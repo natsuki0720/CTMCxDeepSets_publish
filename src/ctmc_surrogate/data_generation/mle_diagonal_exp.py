@@ -1,4 +1,4 @@
-"""対角指数形式CTMCの最尤推定。"""
+"""Maximum-likelihood estimation for diagonal-exponential CTMC."""
 
 from __future__ import annotations
 
@@ -8,17 +8,17 @@ from scipy.optimize import minimize
 
 
 class LikelihoodDiagonalExp:
-    """対角指数形式Q行列の負の対数尤度を最小化する。"""
+    """Minimize the negative log-likelihood of a diagonal-exponential Q matrix."""
 
     def __init__(self, data: np.ndarray, num_state: int = 4) -> None:
         if num_state < 2:
-            raise ValueError("num_state は2以上である必要があります。")
+            raise ValueError("num_state must be at least 2.")
         self._data = data
         self._num_state = num_state
 
     def generate_q_from_r(self, r_vec: np.ndarray) -> np.ndarray:
         if len(r_vec) != self._num_state - 1:
-            raise ValueError("r_vec の長さは num_state - 1 と一致する必要があります。")
+            raise ValueError("Length of r_vec must equal num_state - 1.")
 
         q_matrix = np.zeros((self._num_state, self._num_state), dtype=float)
         rates = np.exp(r_vec)
@@ -46,5 +46,5 @@ class LikelihoodDiagonalExp:
             options={"gtol": 1e-5, "maxiter": 1000, "disp": False},
         )
         # if not result.success:
-        #     raise RuntimeError(f"MLE最適化に失敗しました: {result.message}")
+        #     raise RuntimeError(f"MLE optimization failed: {result.message}")
         return self.generate_q_from_r(result.x)

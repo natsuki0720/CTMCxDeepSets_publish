@@ -1,4 +1,4 @@
-"""CTMCサロゲート推定の公開版パッケージ。"""
+"""Public package for CTMC surrogate estimation."""
 
 from .data import CTMCSurrogateDataset, ctmc_collate_fn
 from .data_generation import DataGenerator, DatasetGenerationConfig, DeltaTSamplingConfig, MultiDatasetConfig, TransitionRateConfig, generate_multiple_datasets

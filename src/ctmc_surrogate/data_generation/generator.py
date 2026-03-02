@@ -1,4 +1,4 @@
-"""CTMC離散DelTデータセット生成器。"""
+"""CTMC discrete DelT dataset generator."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from .transition_rate import DiagonalTransitionRateMatrixGenerator
 
 @dataclass(frozen=True)
 class CTMCTransitionSample:
-    """単一遷移サンプル。"""
+    """Single transition sample."""
 
     start_state: int
     next_state: int
@@ -25,7 +25,7 @@ class CTMCTransitionSample:
 
 @dataclass(frozen=True)
 class GeneratedDataset:
-    """生成済みデータセット。"""
+    """Generated dataset."""
 
     q_matrix: list[list[float]]
     q_mle: list[list[float]] | None
@@ -33,18 +33,18 @@ class GeneratedDataset:
 
 
 class DataGenerator:
-    """定式化に基づき1データセットを生成する。"""
+    """Generate one dataset based on the formulation."""
 
     def __init__(self, config: DatasetGenerationConfig) -> None:
         if config.num_samples <= 0:
-            raise ValueError("num_samples は1以上である必要があります。")
+            raise ValueError("num_samples must be at least 1.")
 
         self._config = config
         self._matrix_generator = DiagonalTransitionRateMatrixGenerator(config.transition_rate)
         self._calc_prob = CalcProbmatrix()
 
     def generate_matrix(self, rng: Generator) -> GeneratedDataset:
-        """Q行列と遷移サンプル群を生成する。"""
+        """Generate a Q matrix and transition samples."""
         q_matrix = self._matrix_generator.generate(rng)
         n_state = q_matrix.shape[0]
 
@@ -87,7 +87,7 @@ class DataGenerator:
 
         init_r = list(self._config.mle_init_r)
         if len(init_r) != expected_len:
-            raise ValueError(f"mle_init_r の長さは {expected_len} である必要があります。")
+            raise ValueError(f"Length of mle_init_r must be {expected_len}.")
         return init_r
 
 
@@ -98,9 +98,9 @@ def _dirichlet_ones(size: int, rng: Generator) -> np.ndarray:
 
 
 def generate_multiple_datasets(config: MultiDatasetConfig) -> list[GeneratedDataset]:
-    """ベースシードとデータセットIDから子シードを作り独立生成する。"""
+    """Create child seeds from a base seed and dataset IDs for independent generation."""
     if config.num_datasets <= 0:
-        raise ValueError("num_datasets は1以上である必要があります。")
+        raise ValueError("num_datasets must be at least 1.")
 
     generator = DataGenerator(config.dataset)
     results: list[GeneratedDataset] = []
