@@ -94,6 +94,8 @@ Windows (PowerShell / Command Prompt, single line):
 python scripts/data_generation/entrypoint_gen_with_MLE.py --count 1000 --out-dir .\data\test_1k --states 4 --lifespan 100.0 --min-n 500 --max-n 5000 --base-seed 20250924 --init-r=-0.5,-1,-1.5 --run-parallel --workers 8
 ```
 
+> Depending on your hardware and runtime constraints, data generation may take a long time. Increase `--workers` to use more parallelism, or reduce `--count` to generate fewer datasets.
+
 ### 3) Generate about 200,000 datasets for training (parallel)
 
 Linux/macOS (bash/zsh):
@@ -117,6 +119,8 @@ Windows (PowerShell / Command Prompt, single line):
 ```powershell
 python scripts/data_generation/entrypoint_gen_with_MLE.py --count 200000 --out-dir .\data\train_200k --states 4 --lifespan 100.0 --min-n 500 --max-n 5000 --base-seed 20250924 --init-r=-0.5,-1,-1.5 --run-parallel --workers 8
 ```
+
+> If generation time is too long in your environment, tune `--workers` and `--count` to match available CPU resources and your target turnaround time.
 
 ### 4) Run the training entry point
 
