@@ -57,6 +57,21 @@ class CustomLoss(nn.Module):
         return torch.abs(y_pred_inverse - y_true_inverse).mean()
 
 
+class NPELoss(nn.Module):
+    """Negative log-likelihood loss for Neural Posterior Estimation heads.
+
+    The model's gaussian / flow head returns a conditional posterior
+    ``q_phi(z | X)`` (a ``torch.distributions``-style object). The training
+    objective is the mean NLL ``-log q_phi(z_true | X)``, a strictly proper
+    scoring rule whose minimizer is the true posterior. ``target`` is the
+    generating log-lifetime ``z = log nu`` produced by the dataset.
+    """
+
+    def forward(self, posterior: Any, target: Tensor) -> Tensor:
+        log_prob = posterior.log_prob(target)
+        return -log_prob.mean()
+
+
 def _move_batch_to_device(
     batch: tuple[Tensor, Tensor, Tensor, Tensor],
     device: torch.device,

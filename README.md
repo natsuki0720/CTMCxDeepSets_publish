@@ -153,6 +153,73 @@ python scripts/train_entrypoint.py --data-dir .\data\train_200k --n 50000 --out-
 
 ---
 
+## Neural Posterior Estimation (NPE)
+
+In addition to the point-estimate surrogate (`--head point`, the default), the
+same DeepSets encoder can be trained as an amortized Bayesian estimator that
+returns a full conditional posterior `q_phi(z | X)` over the log-lifetimes
+`z = log(nu) = log(1/q)`. This captures sample-size–dependent posterior
+contraction that a point estimate cannot.
+
+Key differences from the point head:
+
+- **Target**: the *generating* parameter `z` from the true `Q` (no MLE step), so
+  NPE training reuses the existing CSVs and is much cheaper to label.
+- **Sample size**: `log K` is injected into the head so the posterior width
+  shrinks with the number of observations (attention pooling alone is
+  replication-invariant and would ignore `K`).
+- **Loss**: negative log-likelihood `-log q_phi(z | X)` (a strictly proper
+  scoring rule), selected automatically for the NPE heads.
+
+### Train an NPE model
+
+```bash
+# Gaussian head (full-Cholesky posterior; no extra dependency)
+python scripts/train_entrypoint.py \
+  --data-dir ./data/train_200k --n 50000 --out-dir ./out --recursive \
+  --epochs 1000 --batch-size 128 --lr 1e-3 --patience 10 --head gaussian
+
+# Flow head (conditional Neural Spline Flow; requires `zuko`, see environment.yml)
+python scripts/train_entrypoint.py \
+  --data-dir ./data/train_200k --n 50000 --out-dir ./out --recursive \
+  --head flow --flow-transforms 3 --flow-hidden 64
+```
+
+The run directory stores `model_config.yaml` (including `head`) and
+`weights/best_model.pt`, so the model is rebuilt automatically at inference time.
+
+### Evaluate calibration
+
+```bash
+python scripts/evaluate_npe.py --run-dir out/run_XXXX --num-sbc 300 --num-exact 20
+```
+
+This writes `npe_eval.json` with the section-4 diagnostics: the replication test
+(`X` vs `X(+)X`; posterior SD should shrink by `1/sqrt(2)`), simulation-based
+calibration (rank uniformity, stratified by `K`), credible-interval coverage,
+the posterior-SD-vs-`K` shrinkage slope (target `-1/2`), and NPE-vs-exact
+posterior agreement.
+
+### Use a trained NPE model in Python
+
+```python
+from ctmc_surrogate.inference import load_npe_predictor, is_correct_from_predictor
+
+predictor = load_npe_predictor("out/run_XXXX")          # rebuilds from model_config.yaml
+pred = predictor.predict(samples)                        # posterior mean/SD in z, lifetime, rate
+posterior = predictor.posterior(samples)                 # torch distribution (log_prob / sample)
+
+# Optional: reweight the NPE posterior toward the exact posterior using the exact
+# (cheap, aggregated) CTMC likelihood — a defense against approximation error.
+corrected = is_correct_from_predictor(predictor, samples, lifetime_upper=100.0)
+print(corrected.mean_z, corrected.ess)                   # ESS is a proposal-quality signal
+```
+
+`is_correct_from_predictor` also accepts `prior_log_prob_fn=...` to retarget the
+posterior to a different prior than the training one, with no retraining.
+
+---
+
 ## Run Evaluation in Notebook
 
 You can evaluate a pretrained model with `notebook/pretrained_model_eval.ipynb`.

@@ -46,9 +46,15 @@ if str(SRC_DIR) not in sys.path:
 from ctmc_surrogate.data.collate import ctmc_collate_fn
 from ctmc_surrogate.data.dataset import CTMCSurrogateDataset
 from ctmc_surrogate.data.dataset_csv_loader import ParsedCTMCDataset, load_dir
-from ctmc_surrogate.data.dataset_screening import ScreeningConfig, extract_lambdas_from_Q, screen_datasets
+from ctmc_surrogate.data.dataset_screening import (
+    ScreeningConfig,
+    extract_lambdas_from_Q,
+    screen_datasets,
+    screen_datasets_npe,
+)
+from ctmc_surrogate.data.targets import build_npe_target_from_Q
 from ctmc_surrogate.models import build_model
-from ctmc_surrogate.train import EarlyStoppingConfig, TrainLoopConfig, fit, save_run_artifacts, CustomLoss
+from ctmc_surrogate.train import CustomLoss, EarlyStoppingConfig, NPELoss, TrainLoopConfig, fit, save_run_artifacts
 
 
 def _parse_args() -> argparse.Namespace:
@@ -90,6 +96,18 @@ def _parse_args() -> argparse.Namespace:
         default="auto",
         help="State index base. auto infers zero-based or one-based from CSV values (errors if ambiguous)",
     )
+    parser.add_argument(
+        "--head",
+        type=str,
+        choices=["point", "gaussian", "flow"],
+        default="point",
+        help=(
+            "Output head. 'point' is the v2 surrogate (target = MLE lambda). "
+            "'gaussian'/'flow' train an NPE posterior over z=log(nu) (target = true Q, no MLE)."
+        ),
+    )
+    parser.add_argument("--flow-transforms", type=int, default=3, help="Number of flow transforms (head=flow)")
+    parser.add_argument("--flow-hidden", type=int, default=64, help="Hidden width of flow transforms (head=flow)")
     parser.add_argument(
         "--device",
         type=str,
@@ -192,7 +210,16 @@ def _infer_state_index_base(datasets: list[ParsedCTMCDataset]) -> str:
     )
 
 
-def _build_dataset_from_filewise(datasets: list[ParsedCTMCDataset], state_index_base: str) -> CTMCSurrogateDataset:
+def _build_dataset_from_filewise(
+    datasets: list[ParsedCTMCDataset], state_index_base: str, head: str = "point"
+) -> CTMCSurrogateDataset:
+    """Build a training dataset.
+
+    point head -> target is the MLE lambda from Q' (q_mle).
+    gaussian/flow head -> target is z = log(nu) derived from the *true* Q, which
+    needs no MLE step and is always valid by construction.
+    """
+    is_npe = head != "point"
     state_list: list[torch.Tensor] = []
     delta_t_list: list[torch.Tensor] = []
     target_list: list[torch.Tensor] = []
@@ -204,10 +231,8 @@ def _build_dataset_from_filewise(datasets: list[ParsedCTMCDataset], state_index_
             raise ValueError(f"Invalid samples shape: path={ds.path}, shape={ds.samples.shape}")
 
         n_state = int(ds.q.shape[0])
-        if ds.q_mle is None:
-            raise ValueError(f"q_mle is None for dataset: {ds.path}")
-        if ds.q.shape != (n_state, n_state) or ds.q_mle.shape != (n_state, n_state):
-            raise ValueError(f"Invalid Q / Q' shape: path={ds.path}, q={ds.q.shape}, q_mle={ds.q_mle.shape}")
+        if ds.q.shape != (n_state, n_state):
+            raise ValueError(f"Invalid Q shape: path={ds.path}, q={ds.q.shape}")
 
         if expected_n is None:
             expected_n = n_state
@@ -221,9 +246,19 @@ def _build_dataset_from_filewise(datasets: list[ParsedCTMCDataset], state_index_
 
         state = torch.as_tensor(ds.samples[:, :2].T, dtype=torch.long)
         delta_t = torch.as_tensor(ds.samples[:, 2], dtype=torch.float32)
-        if not np.isfinite(ds.q_mle).all():
-            raise ValueError(f"q_mle has NaN/Inf for dataset: {ds.path}")
-        target = torch.as_tensor(extract_lambdas_from_Q(ds.q_mle), dtype=torch.float32)
+
+        if is_npe:
+            if not np.isfinite(ds.q).all():
+                raise ValueError(f"True Q has NaN/Inf for dataset: {ds.path}")
+            target = torch.as_tensor(build_npe_target_from_Q(ds.q), dtype=torch.float32)
+        else:
+            if ds.q_mle is None:
+                raise ValueError(f"q_mle is None for dataset: {ds.path}")
+            if ds.q_mle.shape != (n_state, n_state):
+                raise ValueError(f"Invalid Q' shape: path={ds.path}, q_mle={ds.q_mle.shape}")
+            if not np.isfinite(ds.q_mle).all():
+                raise ValueError(f"q_mle has NaN/Inf for dataset: {ds.path}")
+            target = torch.as_tensor(extract_lambdas_from_Q(ds.q_mle), dtype=torch.float32)
 
         state_list.append(state)
         delta_t_list.append(delta_t)
@@ -248,13 +283,24 @@ def main() -> None:
 
     datasets = load_dir(args.data_dir, recursive=bool(args.recursive))
 
-    cfg = ScreeningConfig(
-        min_lambda=float(args.min_lambda),
-        max_lambda=float(args.max_lambda),
-        check_nan_inf=not bool(args.no_naninf_check),
-        require_structure=not bool(args.no_structure_check),
-    )
-    screening = screen_datasets(datasets, cfg)
+    head = str(args.head)
+    is_npe = head != "point"
+    if is_npe:
+        # NPE supervises on the true Q (valid by construction): drop the MLE-based
+        # screening and keep only sample-integrity checks (no selection bias).
+        cfg = ScreeningConfig(
+            check_nan_inf=not bool(args.no_naninf_check),
+            require_structure=not bool(args.no_structure_check),
+        )
+        screening = screen_datasets_npe(datasets, check_true_q_structure=not bool(args.no_structure_check))
+    else:
+        cfg = ScreeningConfig(
+            min_lambda=float(args.min_lambda),
+            max_lambda=float(args.max_lambda),
+            check_nan_inf=not bool(args.no_naninf_check),
+            require_structure=not bool(args.no_structure_check),
+        )
+        screening = screen_datasets(datasets, cfg)
     kept = screening.kept
 
     if len(kept) < int(args.n):
@@ -285,8 +331,8 @@ def main() -> None:
         _infer_state_index_base(selected) if str(args.state_index_base) == "auto" else str(args.state_index_base)
     )
 
-    train_dataset = _build_dataset_from_filewise(train_sets, state_index_base=resolved_state_index_base)
-    val_dataset = _build_dataset_from_filewise(val_sets, state_index_base=resolved_state_index_base)
+    train_dataset = _build_dataset_from_filewise(train_sets, state_index_base=resolved_state_index_base, head=head)
+    val_dataset = _build_dataset_from_filewise(val_sets, state_index_base=resolved_state_index_base, head=head)
 
     pin_memory = str(args.device).startswith("cuda")
 
@@ -315,7 +361,11 @@ def main() -> None:
         "embedding_dim": 16,
         "output_dim": first_n - 1,
         "input_is_one_based": (resolved_state_index_base == "one"),
+        "head": head,
     }
+    if head == "flow":
+        model_config["flow_transforms"] = int(args.flow_transforms)
+        model_config["flow_hidden"] = int(args.flow_hidden)
     model = build_model(model_config)
 
     loop_cfg = TrainLoopConfig(
@@ -330,7 +380,7 @@ def main() -> None:
         train_loader=train_loader,
         valid_loader=val_loader,
         config=loop_cfg,
-        loss_fn=CustomLoss(),
+        loss_fn=NPELoss() if is_npe else CustomLoss(),
     )
 
     save_run_artifacts(

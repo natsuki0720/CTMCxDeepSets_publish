@@ -171,6 +171,81 @@ def screen_datasets(
     return result
 
 
+def validate_samples(samples: np.ndarray, n_states: int) -> None | str:
+    """Validate sample-column integrity and return a reason string when invalid.
+
+    Used by the NPE screening path. NPE supervision uses the generating Q
+    (always valid by construction), so the only meaningful check is whether the
+    ``(state_pre, state_post, delta_t)`` sample rows are well formed.
+    """
+
+    if samples.ndim != 2 or samples.shape[1] != 3:
+        return f"samples must have shape (M, 3): shape={samples.shape}"
+    if samples.shape[0] < 1:
+        return "samples are empty (M = 0)"
+    if not np.isfinite(samples).all():
+        return "samples contain NaN/Inf"
+
+    pre = samples[:, 0]
+    post = samples[:, 1]
+    delta_t = samples[:, 2]
+
+    if np.any(delta_t < 0):
+        return "delta_t contains negative values"
+
+    for name, col in (("state_pre", pre), ("state_post", post)):
+        rounded = np.rint(col)
+        if not np.allclose(col, rounded):
+            return f"{name} contains non-integer state ids"
+        # Accept either zero-based ([0, n-1]) or one-based ([1, n]) indexing.
+        if np.min(rounded) < 0 or np.max(rounded) > n_states:
+            return (
+                f"{name} is out of the allowed state range [0, {n_states}]: "
+                f"actual=[{int(np.min(rounded))}, {int(np.max(rounded))}]"
+            )
+
+    return None
+
+
+def screen_datasets_npe(
+    datasets: list[ParsedCTMCDataset],
+    check_true_q_structure: bool = True,
+) -> ScreeningResult:
+    """Screen datasets for NPE training using sample integrity only.
+
+    Unlike :func:`screen_datasets` (which validates the MLE matrix ``Q'``), the
+    NPE label is the generating matrix ``Q`` and is valid by construction. This
+    removes the MLE-convergence based exclusion and the associated selection
+    bias; the only remaining checks are the structural validity of the true Q
+    (cheap, optional) and the integrity of the sample rows.
+    """
+
+    result = ScreeningResult()
+
+    for dataset in datasets:
+        report_base: dict[str, Any] = {"path": dataset.path}
+
+        if check_true_q_structure:
+            structure_err = validate_Q_structure(dataset.q, tol=1e-6)
+            if structure_err is not None:
+                result.dropped.append(dataset)
+                result.report.append(
+                    {**report_base, "reason": "invalid_true_q_structure", "detail": structure_err}
+                )
+                continue
+
+        n_states = int(dataset.q.shape[0])
+        sample_err = validate_samples(dataset.samples, n_states=n_states)
+        if sample_err is not None:
+            result.dropped.append(dataset)
+            result.report.append({**report_base, "reason": "invalid_samples", "detail": sample_err})
+            continue
+
+        result.kept.append(dataset)
+
+    return result
+
+
 def screen_dir_fast(dir_path: str | Path, recursive: bool, cfg: ScreeningConfig) -> dict[str, Any]:
     """Run fast screening using only CSV headers."""
 
